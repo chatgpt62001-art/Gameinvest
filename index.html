@@ -1,0 +1,1530 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>APEX CAPITAL – Investment Simulator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Playfair+Display:wght@700;900&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  :root{
+    --bg:#0A0A0C;--panel:#111116;--card:#18181F;--border:rgba(201,168,76,0.18);
+    --gold:#C9A84C;--gold-dim:rgba(201,168,76,0.14);--gold-glow:rgba(201,168,76,0.08);
+    --text:#F0EDE6;--muted:#9B9589;--dim:#5C5852;
+    --green:#4ADE80;--red:#F87171;
+    --header-h:54px;--ticker-h:28px;
+  }
+  body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;height:100vh;overflow:hidden}
+  button{font-family:'DM Sans',sans-serif;cursor:pointer}
+  input{font-family:'DM Mono',monospace}
+  ::-webkit-scrollbar{width:4px;height:4px}
+  ::-webkit-scrollbar-track{background:transparent}
+  ::-webkit-scrollbar-thumb{background:var(--gold-dim);border-radius:2px}
+
+  /* ── Layout ── */
+  #app{display:flex;flex-direction:column;height:100vh;overflow:hidden}
+
+  header{
+    background:rgba(10,10,12,0.97);border-bottom:1px solid var(--border);
+    display:flex;align-items:center;justify-content:space-between;
+    padding:0 1.5rem;height:var(--header-h);flex-shrink:0;
+    position:relative;z-index:50;backdrop-filter:blur(12px)
+  }
+
+  #ticker-bar{
+    background:var(--panel);border-bottom:1px solid rgba(201,168,76,0.12);
+    overflow:hidden;height:var(--ticker-h);flex-shrink:0;white-space:nowrap;
+    display:flex;align-items:center
+  }
+  #ticker-inner{display:inline-flex;gap:2rem;animation:ticker 35s linear infinite}
+  @keyframes ticker{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+
+  /* CRITICAL FIX: main area is a fixed-height flex row, sidebar never scrolls */
+  #main{
+    display:flex;flex:1;
+    height:calc(100vh - var(--header-h) - var(--ticker-h));
+    overflow:hidden
+  }
+
+  nav#sidenav{
+    width:70px;background:var(--panel);border-right:1px solid var(--border);
+    display:flex;flex-direction:column;align-items:center;padding:1rem 0;gap:4px;
+    flex-shrink:0;height:100%;overflow-y:auto
+  }
+  nav#sidenav button{
+    width:52px;height:52px;border-radius:12px;border:1px solid transparent;
+    background:none;display:flex;flex-direction:column;align-items:center;
+    justify-content:center;gap:3px;color:var(--dim);
+    font-size:9px;letter-spacing:.06em;text-transform:uppercase
+  }
+  nav#sidenav button.active{border-color:rgba(201,168,76,.5);background:rgba(201,168,76,.1);color:var(--gold)}
+  nav#sidenav button:hover:not(.active){background:rgba(201,168,76,.05);color:var(--muted)}
+  nav#sidenav button span.nav-icon{font-size:18px}
+
+  #content{flex:1;overflow-y:auto;padding:1.5rem;height:100%}
+
+  /* ── Cards ── */
+  .asset-card{
+    background:var(--panel);border:1px solid var(--gold-dim);border-radius:14px;
+    padding:14px 14px 10px;cursor:pointer;position:relative;
+    display:flex;flex-direction:column;gap:4px
+  }
+  .asset-card:hover{border-color:rgba(201,168,76,.5);transform:translateY(-1px)}
+  .asset-card.owned{border-color:rgba(201,168,76,.45)}
+  .owned-badge{
+    position:absolute;top:8px;right:8px;background:rgba(201,168,76,.15);
+    border:1px solid rgba(201,168,76,.4);color:var(--gold);font-size:10px;
+    padding:2px 7px;border-radius:20px;font-weight:600
+  }
+
+  /* Car thumbnail in card */
+  .card-car-img{
+    width:100%;height:90px;border-radius:8px;overflow:hidden;
+    background:var(--card);margin-bottom:4px;position:relative
+  }
+  .card-car-img img{width:100%;height:100%;object-fit:cover;display:block}
+  .card-car-img .car-fallback-sm{
+    position:absolute;inset:0;display:flex;align-items:center;
+    justify-content:center;font-size:36px;background:var(--card)
+  }
+
+  /* Watch thumbnail in card */
+  .card-watch-img{
+    width:64px;height:64px;border-radius:8px;overflow:hidden;
+    background:var(--card);flex-shrink:0;position:relative
+  }
+  .card-watch-img img{width:100%;height:100%;object-fit:contain;padding:4px}
+  .card-watch-fallback{
+    position:absolute;inset:0;display:flex;align-items:center;
+    justify-content:center;font-size:28px
+  }
+
+  .card-name{font-size:13px;font-weight:600;color:var(--text);margin-top:2px}
+  .card-ticker{font-size:10px;color:var(--dim);letter-spacing:.1em;font-family:'DM Mono',monospace}
+  .card-price{font-size:15px;font-weight:700;color:var(--gold);font-family:'DM Mono',monospace;margin-top:2px}
+  .card-chg{font-size:11px;font-weight:600;padding:2px 7px;border-radius:5px}
+  .card-chg.up{background:rgba(74,222,128,.13);color:var(--green)}
+  .card-chg.dn{background:rgba(248,113,113,.13);color:var(--red)}
+  .card-bottom{display:flex;align-items:center;justify-content:space-between;margin-top:4px}
+  .card-top-row{display:flex;align-items:center;gap:8px}
+
+  /* Brand image */
+  .brand-img-wrap{
+    width:40px;height:40px;border-radius:8px;overflow:hidden;background:var(--card);
+    display:flex;align-items:center;justify-content:center;flex-shrink:0
+  }
+  .brand-img-wrap img{width:36px;height:36px;object-fit:contain}
+
+  /* Grid */
+  .grid-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px}
+  .grid-upgrades{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px}
+
+  /* Upgrade card */
+  .upgrade-card{background:var(--panel);border:1px solid var(--gold-dim);border-radius:16px;padding:1.25rem}
+  .upgrade-card.owned{border-color:rgba(201,168,76,.5);background:rgba(201,168,76,.03)}
+  .upgrade-icon{font-size:32px;margin-bottom:8px}
+  .upgrade-name{font-size:15px;font-weight:700;margin-bottom:6px}
+  .upgrade-desc{font-size:12px;color:var(--muted);line-height:1.6;margin-bottom:8px}
+  .upgrade-mechanic{
+    font-size:11px;background:rgba(201,168,76,.08);border:1px solid rgba(201,168,76,.2);
+    border-radius:8px;padding:8px 10px;margin-bottom:10px;color:#d4b86a;line-height:1.6
+  }
+  .upgrade-effect{
+    font-size:11px;color:var(--green);background:rgba(74,222,128,.08);
+    padding:3px 10px;border-radius:20px;display:inline-block;margin-bottom:12px
+  }
+
+  /* Section headers */
+  .section-title{
+    font-family:'Playfair Display',serif;font-size:24px;font-weight:900;
+    letter-spacing:.08em;color:var(--gold);margin-bottom:4px
+  }
+  .section-sub{font-size:10px;color:var(--dim);letter-spacing:.15em;text-transform:uppercase;margin-bottom:1rem}
+
+  /* Filters */
+  .filter-bar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:1rem;align-items:center}
+  .filter-bar input{
+    background:var(--card);border:1px solid rgba(201,168,76,.2);border-radius:10px;
+    padding:6px 14px;color:var(--text);font-size:13px;outline:none;width:200px
+  }
+  .filter-btn{
+    padding:5px 14px;border-radius:20px;border:1px solid rgba(201,168,76,.14);
+    background:none;color:var(--dim);font-size:12px;cursor:pointer;
+  }
+  .filter-btn.active{border-color:rgba(201,168,76,.5);background:rgba(201,168,76,.1);color:var(--gold)}
+
+  /* Modal */
+  #modal-overlay{
+    position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:200;
+    display:none;align-items:center;justify-content:center;padding:1rem
+  }
+  #modal-overlay.open{display:flex}
+  #modal-box{
+    background:var(--panel);border:1px solid rgba(201,168,76,.35);border-radius:20px;
+    width:min(640px,96vw);max-height:92vh;overflow-y:auto;position:relative
+  }
+  #modal-inner{padding:1.5rem;display:flex;flex-direction:column;gap:1rem}
+  #modal-close{
+    position:sticky;top:12px;float:right;margin:12px 12px 0 0;
+    background:var(--card);border:1px solid rgba(201,168,76,.3);color:var(--muted);
+    border-radius:8px;width:32px;height:32px;cursor:pointer;font-size:16px;
+    display:flex;align-items:center;justify-content:center;z-index:10;flex-shrink:0
+  }
+
+  /* Car image in modal */
+  .car-visual{background:var(--card);border-radius:12px;overflow:hidden;position:relative}
+  .car-visual img{width:100%;height:210px;object-fit:cover;display:block}
+  .car-visual .car-model-label{font-size:11px;color:var(--dim);padding:8px 12px;text-align:center}
+  .car-fallback{width:100%;height:200px;display:flex;align-items:center;justify-content:center;font-size:64px}
+
+  /* Watch visual */
+  .watch-visual{
+    background:var(--card);border-radius:12px;padding:1rem;
+    display:flex;align-items:center;justify-content:center;gap:2rem
+  }
+  .watch-img-box{
+    background:#111;border-radius:12px;overflow:hidden;
+    display:flex;align-items:center;justify-content:center;padding:12px;
+    width:150px;height:150px;flex-shrink:0
+  }
+  .watch-img-box img{width:126px;height:126px;object-fit:contain}
+
+  /* Stats */
+  .stats-row{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+  .stat-box{background:var(--card);border-radius:10px;padding:.7rem;text-align:center}
+  .stat-label{font-size:9px;text-transform:uppercase;letter-spacing:.12em;color:var(--dim);margin-bottom:4px}
+  .stat-val{font-size:15px;font-family:'DM Mono',monospace;color:var(--text);font-weight:600}
+
+  /* Trade */
+  .trade-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .trade-box{background:var(--card);border-radius:12px;padding:1rem}
+  .trade-box.buy{border:1px solid rgba(74,222,128,.15)}
+  .trade-box.sell{border:1px solid rgba(248,113,113,.15)}
+  .trade-label{font-size:10px;text-transform:uppercase;letter-spacing:.12em;color:var(--dim);margin-bottom:10px}
+  .trade-qty{display:flex;align-items:center;gap:6px;margin-bottom:8px}
+  .trade-qty button{width:30px;height:30px;border-radius:8px;font-size:16px;display:flex;align-items:center;justify-content:center}
+  .trade-qty input{width:56px;text-align:center;background:#22222C;border-radius:8px;color:var(--text);font-size:14px;padding:4px;outline:none}
+  .trade-total{font-size:11px;color:var(--muted);margin-bottom:10px}
+  .btn-buy{width:100%;padding:.6rem;border-radius:10px;border:1px solid rgba(74,222,128,.35);background:rgba(74,222,128,.12);color:var(--green);font-weight:700;font-size:13px}
+  .btn-buy:disabled{opacity:.35;cursor:not-allowed}
+  .btn-sell{width:100%;padding:.6rem;border-radius:10px;border:1px solid rgba(248,113,113,.3);background:rgba(248,113,113,.1);color:var(--red);font-weight:700;font-size:13px}
+  .btn-sell:disabled{opacity:.35;cursor:not-allowed}
+  .btn-upgrade{width:100%;padding:.55rem;border-radius:10px;border:1px solid rgba(201,168,76,.4);background:rgba(201,168,76,.1);color:var(--gold);font-weight:700;font-size:13px}
+  .btn-upgrade:disabled{opacity:.35;cursor:not-allowed}
+
+  /* Color picker */
+  .color-dot{width:32px;height:32px;border-radius:50%;cursor:pointer;border:2px solid rgba(255,255,255,.15)}
+  .color-dot.selected{border:3px solid var(--gold);transform:scale(1.2)}
+
+  /* Portfolio table */
+  .port-table{width:100%;border-collapse:collapse;font-size:13px}
+  .port-table th{text-align:left;padding:8px 10px;font-size:10px;text-transform:uppercase;letter-spacing:.12em;color:var(--dim);font-weight:500;border-bottom:1px solid rgba(201,168,76,.15)}
+  .port-table td{padding:10px;border-bottom:1px solid rgba(201,168,76,.06)}
+  .port-table tr:hover td{background:var(--card)}
+  .port-table tr{cursor:pointer;}
+
+  /* KPI */
+  .kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:1.5rem}
+  .kpi-card{background:var(--panel);border:1px solid var(--gold-dim);border-radius:14px;padding:1rem 1.25rem}
+  .kpi-label{font-size:9px;text-transform:uppercase;letter-spacing:.14em;color:var(--dim);margin-bottom:6px}
+  .kpi-val{font-size:20px;font-family:'DM Mono',monospace;font-weight:700}
+
+  /* Notification */
+  #notif{position:fixed;bottom:2rem;right:2rem;background:var(--panel);border-radius:14px;padding:.9rem 1.25rem;min-width:260px;z-index:300;display:none;animation:slideIn .3s ease}
+  @keyframes slideIn{from{transform:translateX(100px);opacity:0}to{transform:translateX(0);opacity:1}}
+  #notif.success{border:1px solid rgba(74,222,128,.4)}
+  #notif.error{border:1px solid rgba(248,113,113,.4)}
+  #notif-title{font-weight:700;margin-bottom:3px}
+  #notif-body{font-size:12px;color:var(--muted)}
+
+  .pack-btns{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:6px}
+  .pack-btn{padding:3px 9px;border-radius:6px;border:1px solid rgba(201,168,76,.2);background:var(--card);color:var(--muted);font-size:11px;cursor:pointer;font-weight:600;font-family:'DM Mono',monospace}
+  .pack-btn:hover{border-color:rgba(201,168,76,.5);color:var(--gold)}
+  .pack-btn.pack-active{border-color:rgba(201,168,76,.7);background:rgba(201,168,76,.15);color:var(--gold)}
+  .pack-btn-buy.pack-active{border-color:rgba(74,222,128,.5);background:rgba(74,222,128,.1);color:var(--green)}
+  .pack-btn-sell.pack-active{border-color:rgba(248,113,113,.4);background:rgba(248,113,113,.08);color:var(--red)}
+  .price-line{display:flex;align-items:center;justify-content:space-between}
+  .price-big{font-size:26px;font-weight:700;color:var(--gold);font-family:'DM Mono',monospace}
+  .sparkline-wrap{background:var(--card);border-radius:10px;padding:8px 12px}
+  .pnl-box{background:var(--card);border-radius:10px;padding:.75rem;display:flex;gap:1.5rem;justify-content:center}
+  .empty{color:var(--dim);text-align:center;padding:3rem;font-size:14px}
+  .news-item{padding:.85rem 0;border-bottom:1px solid rgba(201,168,76,.08)}
+  .news-time{font-size:10px;font-family:'DM Mono',monospace;color:var(--dim);margin-bottom:4px}
+  .news-text{font-size:13px;color:var(--muted);line-height:1.6}
+  .news-text b{color:var(--text)}
+  .apex-logo{font-family:'Playfair Display',serif;font-size:20px;font-weight:900;letter-spacing:.15em;color:var(--gold)}
+  .apex-sub{font-size:9px;color:var(--dim);letter-spacing:.2em;text-transform:uppercase;margin-top:-3px}
+  .hstat{text-align:right}
+  .hstat-label{font-size:9px;text-transform:uppercase;letter-spacing:.12em;color:var(--dim)}
+  .hstat-val{font-size:13px;font-family:'DM Mono',monospace;font-weight:700}
+
+  /* ── INTRO SCREEN ── */
+  #intro-overlay{
+    position:fixed;inset:0;z-index:999;
+    background:radial-gradient(ellipse at 50% 30%,#1a1508 0%,#0A0A0C 70%);
+    display:flex;align-items:center;justify-content:center;
+    flex-direction:column;gap:0;
+  }
+  #intro-overlay.fade-out{opacity:0;pointer-events:none}
+
+  .intro-particles{display:none}
+
+  .intro-logo-wrap{text-align:center;margin-bottom:2.5rem}
+
+  .intro-logo{
+    font-family:'Playfair Display',serif;font-size:clamp(40px,8vw,72px);
+    font-weight:900;letter-spacing:.2em;
+    background:linear-gradient(135deg,#C9A84C 0%,#f5d680 45%,#C9A84C 100%);
+    -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+    line-height:1
+  }
+  .intro-tagline{font-size:11px;letter-spacing:.35em;text-transform:uppercase;color:var(--dim);margin-top:8px}
+
+  .intro-card{
+    background:rgba(17,17,22,.95);
+    border:1px solid rgba(201,168,76,.25);
+    border-radius:24px;padding:2.5rem 3rem;
+    width:min(480px,92vw);
+    box-shadow:0 40px 80px rgba(0,0,0,.6);
+  }
+  .intro-card h2{font-family:'Playfair Display',serif;font-size:20px;font-weight:700;color:var(--gold);margin-bottom:6px}
+  .intro-card p{font-size:13px;color:var(--muted);margin-bottom:1.5rem;line-height:1.6}
+
+  .capital-presets{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:1rem}
+  .cap-btn{
+    flex:1;min-width:80px;padding:10px 6px;border-radius:12px;
+    border:1px solid rgba(201,168,76,.2);background:var(--card);
+    color:var(--muted);font-size:12px;font-weight:600;cursor:pointer;
+    font-family:'DM Mono',monospace;text-align:center
+  }
+  .cap-btn:hover{border-color:rgba(201,168,76,.5);color:var(--gold)}
+  .cap-btn.selected{border-color:var(--gold);background:rgba(201,168,76,.12);color:var(--gold)}
+
+  .intro-custom-wrap{margin-bottom:1.5rem}
+  .intro-custom-label{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);margin-bottom:6px}
+  .intro-custom-input{
+    width:100%;background:var(--card);border:1px solid rgba(201,168,76,.2);
+    border-radius:12px;padding:10px 14px;color:var(--text);font-size:16px;
+    font-family:'DM Mono',monospace;outline:none
+  }
+  .intro-custom-input:focus{border-color:rgba(201,168,76,.5)}
+
+  .intro-start-btn{
+    width:100%;padding:14px;border-radius:14px;
+    background:linear-gradient(135deg,#C9A84C,#a8832a);
+    border:none;color:#0A0A0C;font-size:15px;font-weight:800;
+    letter-spacing:.1em;cursor:pointer;
+    text-transform:uppercase;font-family:'DM Sans',sans-serif
+  }
+  .intro-start-btn:hover{opacity:.9}
+
+  /* ── CHART RANGE CONTROLS ── */
+  .chart-range-bar{display:flex;gap:4px;align-items:center;margin-bottom:4px}
+  .range-btn{
+    padding:3px 10px;border-radius:6px;border:1px solid rgba(201,168,76,.15);
+    background:none;color:var(--dim);font-size:11px;font-family:'DM Mono',monospace;
+    cursor:pointer;font-weight:600
+  }
+  .range-btn:hover{border-color:rgba(201,168,76,.4);color:var(--muted)}
+  .range-btn.active{border-color:rgba(201,168,76,.6);background:rgba(201,168,76,.12);color:var(--gold)}
+
+  /* modal chart */
+  .modal-chart-wrap{background:var(--card);border-radius:12px;padding:12px 16px;display:flex;flex-direction:column;gap:6px}
+  .spark-gradient{display:block}
+
+  /* asset card hover — border only, no transform */
+  .asset-card:hover{border-color:rgba(201,168,76,.55)}
+  .asset-card.owned{border-color:rgba(201,168,76,.5)}
+
+  /* KPI card */
+  .kpi-card{background:linear-gradient(135deg,var(--panel) 0%,rgba(201,168,76,.03) 100%)}
+</style>
+</head>
+<body>
+<!-- ── INTRO SCREEN ── -->
+<div id="intro-overlay">
+  <div class="intro-particles" id="intro-particles"></div>
+  <div class="intro-logo-wrap">
+    <div class="intro-logo">APEX CAPITAL</div>
+    <div class="intro-tagline">Investment Simulator · Premium Edition</div>
+  </div>
+  <div class="intro-card">
+    <h2>Startkapital wählen</h2>
+    <p>Wähle dein Anfangskapital oder gib einen eigenen Betrag ein. Dein Ziel: maximale Rendite.</p>
+    <div class="capital-presets">
+      <div class="cap-btn selected" onclick="selectCap(this,100000)">$100K</div>
+      <div class="cap-btn" onclick="selectCap(this,500000)">$500K</div>
+      <div class="cap-btn" onclick="selectCap(this,1000000)">$1M</div>
+      <div class="cap-btn" onclick="selectCap(this,5000000)">$5M</div>
+      <div class="cap-btn" onclick="selectCap(this,10000000)">$10M</div>
+    </div>
+    <div class="intro-custom-wrap">
+      <div class="intro-custom-label">Eigener Betrag (USD)</div>
+      <input class="intro-custom-input" id="custom-capital" type="number" min="1000" step="1000"
+        placeholder="z.B. 250.000" oninput="onCustomCapInput(+this.value)"/>
+    </div>
+    <button class="intro-start-btn" onclick="startGame()">HANDELN BEGINNEN →</button>
+  </div>
+</div>
+
+<div id="app" style="display:none">
+  <header>
+    <div>
+      <div class="apex-logo">APEX CAPITAL</div>
+      <div class="apex-sub">Investment Simulator</div>
+    </div>
+    <div style="display:flex;gap:1.5rem;align-items:center">
+      <div class="hstat"><div class="hstat-label">Datum</div><div class="hstat-val" id="h-date" style="color:var(--muted)">—</div></div>
+      <div class="hstat"><div class="hstat-label">Kapital</div><div class="hstat-val" id="h-cash" style="color:var(--gold)">—</div></div>
+      <div class="hstat"><div class="hstat-label">Portfolio</div><div class="hstat-val" id="h-port" style="color:var(--gold)">—</div></div>
+      <div class="hstat"><div class="hstat-label">P/L</div><div class="hstat-val" id="h-pnl">—</div></div>
+    </div>
+  </header>
+
+  <div id="ticker-bar"><div id="ticker-inner"></div></div>
+
+  <div id="main">
+    <nav id="sidenav">
+      <button class="active" onclick="setPanel('dashboard')"><span class="nav-icon">⊞</span>Depot</button>
+      <button onclick="setPanel('stocks')"><span class="nav-icon">📈</span>Aktien</button>
+      <button onclick="setPanel('cars')"><span class="nav-icon">🏎</span>Autos</button>
+      <button onclick="setPanel('watches')"><span class="nav-icon">⌚</span>Uhren</button>
+      <button onclick="setPanel('assets')"><span class="nav-icon">💎</span>Assets</button>
+      <button onclick="setPanel('upgrades')"><span class="nav-icon">⭐</span>Upgrades</button>
+      <button onclick="setPanel('news')"><span class="nav-icon">📰</span>News</button>
+    </nav>
+    <main id="content"></main>
+  </div>
+</div>
+
+<div id="modal-overlay" onclick="if(event.target===this)closeModal()">
+  <div id="modal-box">
+    <button id="modal-close" onclick="closeModal()">✕</button>
+    <div id="modal-inner"></div>
+  </div>
+</div>
+
+<div id="notif">
+  <div id="notif-title"></div>
+  <div id="notif-body"></div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+// IMAGE DATA — using CDN URLs that allow hotlinking
+// ═══════════════════════════════════════════════════════════════
+
+const CAR_IMAGES = {
+  // BMW
+  bmw_m2:          "https://cdn.pixabay.com/photo/2022/10/28/18/50/bmw-7551415_1280.jpg",
+  bmw_m3:          "https://cdn.pixabay.com/photo/2021/11/15/12/03/bmw-6797805_1280.jpg",
+  bmw_m4:          "https://cdn.pixabay.com/photo/2022/04/27/11/06/bmw-7160042_1280.jpg",
+  bmw_m4gts:       "https://cdn.pixabay.com/photo/2022/04/27/11/06/bmw-7160042_1280.jpg",
+  bmw_m5:          "https://cdn.pixabay.com/photo/2017/08/01/18/05/bmw-2567826_1280.jpg",
+  bmw_m5cs:        "https://cdn.pixabay.com/photo/2017/08/01/18/05/bmw-2567826_1280.jpg",
+  bmw_m8:          "https://cdn.pixabay.com/photo/2019/11/07/13/45/bmw-4609704_1280.jpg",
+  bmw_xm:          "https://cdn.pixabay.com/photo/2023/01/25/10/24/bmw-7742817_1280.jpg",
+  // Mercedes-AMG
+  amg_a45:         "https://cdn.pixabay.com/photo/2021/10/23/15/11/mercedes-6733931_1280.jpg",
+  amg_c63:         "https://cdn.pixabay.com/photo/2021/10/23/15/11/mercedes-6733931_1280.jpg",
+  amg_e63:         "https://cdn.pixabay.com/photo/2016/04/01/12/16/car-1300629_1280.png",
+  amg_gt63:        "https://cdn.pixabay.com/photo/2020/09/04/19/18/mercedes-5544504_1280.jpg",
+  amg_gtr:         "https://cdn.pixabay.com/photo/2020/09/04/19/18/mercedes-5544504_1280.jpg",
+  amg_one:         "https://cdn.pixabay.com/photo/2022/05/10/08/28/mercedes-amg-7187084_1280.jpg",
+  // Brabus / Maybach / Mansory
+  brabus_800:      "https://cdn.pixabay.com/photo/2020/09/04/19/18/mercedes-5544504_1280.jpg",
+  brabus_900:      "https://cdn.pixabay.com/photo/2020/09/04/19/18/mercedes-5544504_1280.jpg",
+  maybach_s680:    "https://cdn.pixabay.com/photo/2022/07/24/18/14/mercedes-7341817_1280.jpg",
+  maybach_gls:     "https://cdn.pixabay.com/photo/2022/07/24/18/14/mercedes-7341817_1280.jpg",
+  mansory_amg:     "https://cdn.pixabay.com/photo/2017/03/27/14/49/mercedes-2180716_1280.jpg",
+  mansory_gt:      "https://cdn.pixabay.com/photo/2017/10/18/10/38/lamborghini-2863786_1280.jpg",
+  mansory_ferrari: "https://cdn.pixabay.com/photo/2016/11/19/12/14/ferrari-1839192_1280.jpg",
+  // Audi
+  audi_rs3:        "https://cdn.pixabay.com/photo/2023/02/05/13/07/audi-7769682_1280.jpg",
+  audi_rs4:        "https://cdn.pixabay.com/photo/2020/07/21/14/13/audi-5424799_1280.jpg",
+  audi_rs6:        "https://cdn.pixabay.com/photo/2021/02/01/14/04/audi-5971227_1280.jpg",
+  audi_rs7:        "https://cdn.pixabay.com/photo/2020/12/08/14/56/audi-5813898_1280.jpg",
+  audi_rse:        "https://cdn.pixabay.com/photo/2021/09/04/11/57/audi-6598156_1280.jpg",
+  audi_r8:         "https://cdn.pixabay.com/photo/2016/05/06/16/32/car-1376190_1280.jpg",
+  // Porsche
+  porsche_911t:    "https://cdn.pixabay.com/photo/2018/02/21/03/15/porsche-3169794_1280.jpg",
+  porsche_gt3:     "https://cdn.pixabay.com/photo/2021/09/04/09/06/porsche-6597993_1280.jpg",
+  porsche_gt3rs:   "https://cdn.pixabay.com/photo/2022/08/22/19/23/porsche-7403690_1280.jpg",
+  porsche_gt2rs:   "https://cdn.pixabay.com/photo/2018/09/02/09/00/porsche-3648381_1280.jpg",
+  porsche_918:     "https://cdn.pixabay.com/photo/2016/04/01/12/16/car-1300629_1280.png",
+  porsche_taycan:  "https://cdn.pixabay.com/photo/2021/01/15/16/11/porsche-5919609_1280.jpg",
+  // Ferrari
+  ferrari_sf90:    "https://cdn.pixabay.com/photo/2020/07/10/08/54/ferrari-5389987_1280.jpg",
+  ferrari_296:     "https://cdn.pixabay.com/photo/2022/08/12/13/14/ferrari-7381560_1280.jpg",
+  ferrari_f8:      "https://cdn.pixabay.com/photo/2020/01/26/18/14/ferrari-4795818_1280.jpg",
+  ferrari_812:     "https://cdn.pixabay.com/photo/2018/05/29/17/45/ferrari-3439128_1280.jpg",
+  ferrari_laferrari:"https://cdn.pixabay.com/photo/2016/11/19/12/14/ferrari-1839192_1280.jpg",
+  // Lamborghini
+  lambo_urus_s:    "https://cdn.pixabay.com/photo/2021/04/30/18/11/lamborghini-6219158_1280.jpg",
+  lambo_huracan:   "https://cdn.pixabay.com/photo/2017/10/18/10/38/lamborghini-2863786_1280.jpg",
+  lambo_evo:       "https://cdn.pixabay.com/photo/2020/04/10/11/17/lamborghini-5025469_1280.jpg",
+  lambo_revuelto:  "https://cdn.pixabay.com/photo/2023/04/13/13/14/lamborghini-7923283_1280.jpg",
+  lambo_sian:      "https://cdn.pixabay.com/photo/2020/01/26/18/14/ferrari-4795818_1280.jpg",
+  // McLaren
+  mclaren_artura:  "https://cdn.pixabay.com/photo/2021/11/03/07/30/mclaren-6764861_1280.jpg",
+  mclaren_750s:    "https://cdn.pixabay.com/photo/2023/04/06/14/16/mclaren-7903744_1280.jpg",
+  mclaren_765:     "https://cdn.pixabay.com/photo/2021/11/03/07/30/mclaren-6764861_1280.jpg",
+  mclaren_senna:   "https://cdn.pixabay.com/photo/2018/09/14/07/06/mclaren-3677860_1280.jpg",
+  mclaren_p1:      "https://cdn.pixabay.com/photo/2015/01/19/13/51/mclaren-604019_1280.jpg",
+  // Bugatti
+  bugatti_chiron:  "https://cdn.pixabay.com/photo/2018/01/23/10/07/bugatti-3100300_1280.jpg",
+  bugatti_divo:    "https://cdn.pixabay.com/photo/2018/11/21/07/05/bugatti-3828620_1280.jpg",
+  bugatti_bolide:  "https://cdn.pixabay.com/photo/2018/01/23/10/07/bugatti-3100300_1280.jpg",
+  // Koenigsegg / Pagani
+  koenigsegg_cc850:"https://cdn.pixabay.com/photo/2021/05/23/16/26/koenigsegg-6278082_1280.jpg",
+  koenigsegg_jesko:"https://cdn.pixabay.com/photo/2021/05/23/16/26/koenigsegg-6278082_1280.jpg",
+  pagani_huayra:   "https://cdn.pixabay.com/photo/2015/05/28/23/12/pagani-787242_1280.jpg",
+  pagani_utopia:   "https://cdn.pixabay.com/photo/2015/05/28/23/12/pagani-787242_1280.jpg",
+  // Rolls-Royce / Bentley
+  rolls_ghost:     "https://cdn.pixabay.com/photo/2016/04/01/12/16/car-1300629_1280.png",
+  rolls_cullinan:  "https://cdn.pixabay.com/photo/2022/03/06/03/09/rolls-royce-7050680_1280.jpg",
+  rolls_spectre:   "https://cdn.pixabay.com/photo/2022/03/06/03/09/rolls-royce-7050680_1280.jpg",
+  bentley_cont:    "https://cdn.pixabay.com/photo/2017/03/27/13/54/bentley-2179046_1280.jpg",
+  bentley_mulliner:"https://cdn.pixabay.com/photo/2017/03/27/13/54/bentley-2179046_1280.jpg",
+  // Lotus / Ford / Corvette
+  lotus_emira:     "https://cdn.pixabay.com/photo/2021/08/24/10/59/lotus-6569831_1280.jpg",
+  lotus_evija:     "https://cdn.pixabay.com/photo/2021/08/24/10/59/lotus-6569831_1280.jpg",
+  ford_gt:         "https://cdn.pixabay.com/photo/2015/09/05/22/09/ford-gt40-924864_1280.jpg",
+  corvette_z06:    "https://cdn.pixabay.com/photo/2021/10/04/14/05/corvette-6680561_1280.jpg",
+  corvette_e_ray:  "https://cdn.pixabay.com/photo/2022/10/17/09/09/corvette-7526620_1280.jpg",
+};
+
+const WATCH_IMAGES = {
+  rolex_daytona:   "https://cdn.pixabay.com/photo/2016/03/27/19/43/rolex-1283843_1280.jpg",
+  rolex_sub:       "https://cdn.pixabay.com/photo/2016/03/27/19/43/rolex-1283843_1280.jpg",
+  rolex_gmt:       "https://cdn.pixabay.com/photo/2016/11/29/08/41/watch-1868251_1280.jpg",
+  rolex_pepsi:     "https://cdn.pixabay.com/photo/2016/11/29/08/41/watch-1868251_1280.jpg",
+  rolex_sky:       "https://cdn.pixabay.com/photo/2016/03/27/19/43/rolex-1283843_1280.jpg",
+  rm_011:          "https://cdn.pixabay.com/photo/2017/05/14/03/36/watch-2311792_1280.jpg",
+  rm_035:          "https://cdn.pixabay.com/photo/2017/05/14/03/36/watch-2311792_1280.jpg",
+  rm_67:           "https://cdn.pixabay.com/photo/2017/05/14/03/36/watch-2311792_1280.jpg",
+  pp_nautilus:     "https://cdn.pixabay.com/photo/2021/01/17/09/11/watch-5924775_1280.jpg",
+  pp_aquanaut:     "https://cdn.pixabay.com/photo/2021/01/17/09/11/watch-5924775_1280.jpg",
+  pp_grand:        "https://cdn.pixabay.com/photo/2021/01/17/09/11/watch-5924775_1280.jpg",
+  ap_roo:          "https://cdn.pixabay.com/photo/2020/11/22/10/07/clock-5767591_1280.jpg",
+  ap_ro:           "https://cdn.pixabay.com/photo/2020/11/22/10/07/clock-5767591_1280.jpg",
+  ap_roo_ss:       "https://cdn.pixabay.com/photo/2020/11/22/10/07/clock-5767591_1280.jpg",
+  omega_speed:     "https://cdn.pixabay.com/photo/2016/01/19/17/48/watch-1149669_1280.jpg",
+  cartier_santos:  "https://cdn.pixabay.com/photo/2018/08/14/17/23/watch-3606743_1280.jpg",
+  iwc_big:         "https://cdn.pixabay.com/photo/2017/04/30/01/56/watch-2271991_1280.jpg",
+  lange_1:         "https://cdn.pixabay.com/photo/2021/01/17/09/11/watch-5924775_1280.jpg",
+};
+
+// Brand logos — real logo URLs from Wikipedia/Wikimedia (always hotlinkable)
+const BRAND_LOGOS = {
+  BMW:           "https://upload.wikimedia.org/wikipedia/commons/thumb/4/44/BMW.svg/600px-BMW.svg.png",
+  "Mercedes-AMG":"https://upload.wikimedia.org/wikipedia/commons/thumb/9/90/Mercedes-Benz_Logo_2010.svg/600px-Mercedes-Benz_Logo_2010.svg.png",
+  Maybach:       "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8d/Maybach_logo.svg/600px-Maybach_logo.svg.png",
+  Brabus:        "https://upload.wikimedia.org/wikipedia/commons/thumb/2/20/Brabus_logo.svg/600px-Brabus_logo.svg.png",
+  Mansory:       "https://upload.wikimedia.org/wikipedia/commons/thumb/c/cb/Mansory_logo.svg/600px-Mansory_logo.svg.png",
+  Audi:          "https://upload.wikimedia.org/wikipedia/commons/thumb/9/92/Audi-Logo_2016.svg/600px-Audi-Logo_2016.svg.png",
+  Porsche:       "https://upload.wikimedia.org/wikipedia/de/thumb/5/5b/Porsche_Logo.svg/600px-Porsche_Logo.svg.png",
+  Ferrari:       "https://upload.wikimedia.org/wikipedia/en/thumb/d/d1/Ferrari-Logo.svg/600px-Ferrari-Logo.svg.png",
+  Lamborghini:   "https://upload.wikimedia.org/wikipedia/en/thumb/d/df/Lamborghini_Logo.svg/600px-Lamborghini_Logo.svg.png",
+  McLaren:       "https://upload.wikimedia.org/wikipedia/commons/thumb/1/15/McLaren_logo.svg/600px-McLaren_logo.svg.png",
+  Bugatti:       "https://upload.wikimedia.org/wikipedia/commons/thumb/b/bd/Bugatti_logo.svg/600px-Bugatti_logo.svg.png",
+  Koenigsegg:    "https://upload.wikimedia.org/wikipedia/en/thumb/a/ae/Koenigsegg_logo.svg/600px-Koenigsegg_logo.svg.png",
+  Pagani:        "https://upload.wikimedia.org/wikipedia/commons/thumb/8/82/Pagani-Logo.svg/600px-Pagani-Logo.svg.png",
+  "Rolls-Royce": "https://upload.wikimedia.org/wikipedia/en/thumb/8/8e/Rolls-Royce_Motor_Cars_logo.svg/600px-Rolls-Royce_Motor_Cars_logo.svg.png",
+  Bentley:       "https://upload.wikimedia.org/wikipedia/commons/thumb/b/bf/Bentley_logo.svg/600px-Bentley_logo.svg.png",
+  Lotus:         "https://upload.wikimedia.org/wikipedia/commons/thumb/2/24/Lotus_logo.svg/600px-Lotus_logo.svg.png",
+  Ford:          "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3e/Ford_logo_flat.svg/600px-Ford_logo_flat.svg.png",
+  Corvette:      "https://upload.wikimedia.org/wikipedia/commons/thumb/4/40/Corvette_logo.svg/600px-Corvette_logo.svg.png",
+  // Watches
+  Rolex:         "https://upload.wikimedia.org/wikipedia/commons/thumb/5/5e/Rolex_logo.svg/600px-Rolex_logo.svg.png",
+  RichardMille:  "https://upload.wikimedia.org/wikipedia/commons/thumb/4/40/Richard_Mille_wordmark.svg/600px-Richard_Mille_wordmark.svg.png",
+  PatekPhilippe: "https://upload.wikimedia.org/wikipedia/commons/thumb/d/db/Patek_Philippe_%26_Co._logo.svg/600px-Patek_Philippe_%26_Co._logo.svg.png",
+  AP:            "https://upload.wikimedia.org/wikipedia/commons/thumb/9/98/Audemars_Piguet_logo.svg/600px-Audemars_Piguet_logo.svg.png",
+  Omega:         "https://upload.wikimedia.org/wikipedia/commons/thumb/a/ab/Omega_Logo.svg/600px-Omega_Logo.svg.png",
+  Cartier:       "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c2/Cartier_wordmark.svg/600px-Cartier_wordmark.svg.png",
+  IWC:           "https://upload.wikimedia.org/wikipedia/commons/thumb/4/44/IWC_Schaffhausen_logo.svg/600px-IWC_Schaffhausen_logo.svg.png",
+  LangeSoehne:   "https://upload.wikimedia.org/wikipedia/commons/thumb/7/71/A._Lange_%26_S%C3%B6hne_Logo.svg/600px-A._Lange_%26_S%C3%B6hne_Logo.svg.png",
+  // Stocks
+  NVIDIA:        "https://upload.wikimedia.org/wikipedia/en/thumb/6/6d/Nvidia_logo.svg/600px-Nvidia_logo.svg.png",
+  Tesla:         "https://upload.wikimedia.org/wikipedia/commons/thumb/b/bd/Tesla_Motors.svg/600px-Tesla_Motors.svg.png",
+  Apple:         "https://upload.wikimedia.org/wikipedia/commons/thumb/f/fa/Apple_logo_black.svg/600px-Apple_logo_black.svg.png",
+  Microsoft:     "https://upload.wikimedia.org/wikipedia/commons/thumb/4/44/Microsoft_logo.svg/600px-Microsoft_logo.svg.png",
+  Amazon:        "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a9/Amazon_logo.svg/600px-Amazon_logo.svg.png",
+  Alphabet:      "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2f/Google_2015_logo.svg/600px-Google_2015_logo.svg.png",
+  Meta:          "https://upload.wikimedia.org/wikipedia/commons/thumb/7/7b/Meta_Platforms_Inc._logo.svg/600px-Meta_Platforms_Inc._logo.svg.png",
+  LVMH:          "https://upload.wikimedia.org/wikipedia/commons/thumb/3/31/LVMH_Logo.svg/600px-LVMH_Logo.svg.png",
+  Hermes:        "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f4/Hermes_Paris_logo.svg/600px-Hermes_Paris_logo.svg.png",
+  FerrariNV:     "https://upload.wikimedia.org/wikipedia/en/thumb/d/d1/Ferrari-Logo.svg/600px-Ferrari-Logo.svg.png",
+  PorscheAG:     "https://upload.wikimedia.org/wikipedia/de/thumb/5/5b/Porsche_Logo.svg/600px-Porsche_Logo.svg.png",
+  BMWAG:         "https://upload.wikimedia.org/wikipedia/commons/thumb/4/44/BMW.svg/600px-BMW.svg.png",
+  MercedesAG:    "https://upload.wikimedia.org/wikipedia/commons/thumb/9/90/Mercedes-Benz_Logo_2010.svg/600px-Mercedes-Benz_Logo_2010.svg.png",
+  Richemont:     "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e5/Richemont_logo.svg/600px-Richemont_logo.svg.png",
+  SAP:           "https://upload.wikimedia.org/wikipedia/commons/thumb/5/59/SAP_2011_logo.svg/600px-SAP_2011_logo.svg.png",
+  ASML:          "https://upload.wikimedia.org/wikipedia/commons/thumb/4/46/ASML_Holding_logo.svg/600px-ASML_Holding_logo.svg.png",
+  Miele:         "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e9/Miele_Logo.svg/600px-Miele_Logo.svg.png",
+  Siemens:       "https://upload.wikimedia.org/wikipedia/commons/thumb/5/5f/Siemens-logo.svg/600px-Siemens-logo.svg.png",
+  NovoNordisk:   "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Novo_Nordisk_Logo.svg/600px-Novo_Nordisk_Logo.svg.png",
+  LOreal:        "https://upload.wikimedia.org/wikipedia/commons/thumb/9/96/L%27Or%C3%A9al_logo.svg/600px-L%27Or%C3%A9al_logo.svg.png",
+  // Crypto / Commodity
+  Bitcoin:       "https://upload.wikimedia.org/wikipedia/commons/thumb/4/46/Bitcoin.svg/600px-Bitcoin.svg.png",
+  Ethereum:      "https://upload.wikimedia.org/wikipedia/commons/thumb/0/05/Ethereum_logo_2014.svg/600px-Ethereum_logo_2014.svg.png",
+  Gold:          "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='48' fill='%23C9A84C'/%3E%3Ctext x='50' y='65' font-family='serif' font-size='42' fill='%23fff' text-anchor='middle'%3EAu%3C/text%3E%3C/svg%3E",
+};
+
+// ═══════════════════════════════════════════════════════════════
+// DATA
+// ═══════════════════════════════════════════════════════════════
+
+const CAR_COLORS = [
+  {name:"Rosso Corsa",hex:"#CC0000"},{name:"Bianco",hex:"#F5F5F5"},{name:"Nero",hex:"#1C1C1C"},
+  {name:"Oro",hex:"#C9A84C"},{name:"Blu Notte",hex:"#003DA5"},{name:"Verde Nürburgring",hex:"#006039"},
+  {name:"Arancio",hex:"#FF6600"},{name:"Grigio",hex:"#808080"},{name:"Viola",hex:"#4B0082"},
+  {name:"Azzurro",hex:"#007FFF"},
+];
+const WATCH_COLORS = [
+  {name:"Stahl",hex:"#C0C0C0"},{name:"Gold",hex:"#FFD700"},{name:"Schwarz",hex:"#1C1C1C"},
+  {name:"Blau",hex:"#003DA5"},{name:"Grün",hex:"#006039"},{name:"Rosé",hex:"#B76E79"},
+];
+
+const STOCKS_DATA = [
+  {id:"nvda",   name:"NVIDIA",         ticker:"NVDA",    cat:"tech",    logoKey:"NVIDIA",      price:850,  vol:.032, desc:"KI-Chips & Halbleiter — Weltmarktführer Datacenter GPU"},
+  {id:"tsla",   name:"Tesla",          ticker:"TSLA",    cat:"auto",    logoKey:"Tesla",       price:245,  vol:.038, desc:"Elektrofahrzeuge, Energie & Autonomes Fahren"},
+  {id:"aapl",   name:"Apple",          ticker:"AAPL",    cat:"tech",    logoKey:"Apple",       price:189,  vol:.018, desc:"Consumer Electronics, Services & Silicon"},
+  {id:"msft",   name:"Microsoft",      ticker:"MSFT",    cat:"tech",    logoKey:"Microsoft",   price:420,  vol:.016, desc:"Azure Cloud, Office 365 & KI Investitionen"},
+  {id:"amzn",   name:"Amazon",         ticker:"AMZN",    cat:"tech",    logoKey:"Amazon",      price:192,  vol:.022, desc:"E-Commerce Marktführer & AWS Cloud"},
+  {id:"googl",  name:"Alphabet",       ticker:"GOOGL",   cat:"tech",    logoKey:"Alphabet",    price:175,  vol:.020, desc:"Google Suche, YouTube & DeepMind KI"},
+  {id:"meta",   name:"Meta",           ticker:"META",    cat:"tech",    logoKey:"Meta",        price:540,  vol:.026, desc:"Social Media, WhatsApp & Metaverse VR"},
+  {id:"lvmh",   name:"LVMH",           ticker:"MC.PA",   cat:"luxury",  logoKey:"LVMH",        price:780,  vol:.015, desc:"Louis Vuitton, Dior, Moët & 75 Luxusmarken"},
+  {id:"hermes", name:"Hermès",         ticker:"RMS.PA",  cat:"luxury",  logoKey:"Hermes",      price:2250, vol:.012, desc:"Birkin, Kelly & exklusivste Luxusmarke weltweit"},
+  {id:"ferrari_spa",name:"Ferrari N.V.",ticker:"RACE",   cat:"luxury",  logoKey:"FerrariNV",   price:438,  vol:.020, desc:"Sportwagen, F1 & Premium Lifestyle Brand"},
+  {id:"porsche_ag",name:"Porsche AG",  ticker:"P911.DE", cat:"auto",    logoKey:"PorscheAG",   price:92,   vol:.022, desc:"Sportwagen, Taycan & Cayenne Weltmarkt"},
+  {id:"bmwag",  name:"BMW AG",         ticker:"BMW.DE",  cat:"auto",    logoKey:"BMWAG",       price:98,   vol:.020, desc:"Premium Automobile, M Division & i-Reihe"},
+  {id:"mercedes",name:"Mercedes-Benz", ticker:"MBG.DE",  cat:"auto",    logoKey:"MercedesAG",  price:74,   vol:.021, desc:"S-Klasse, AMG & Maybach Luxussegment"},
+  {id:"richemont",name:"Richemont",    ticker:"CFR.SW",  cat:"luxury",  logoKey:"Richemont",   price:148,  vol:.018, desc:"Cartier, IWC, Jaeger-LeCoultre & Uhrengruppe"},
+  {id:"sap",    name:"SAP SE",         ticker:"SAP.DE",  cat:"tech",    logoKey:"SAP",         price:195,  vol:.017, desc:"Enterprise Software, ERP & Cloud Plattform"},
+  {id:"asml",   name:"ASML",           ticker:"ASML.AS", cat:"tech",    logoKey:"ASML",        price:920,  vol:.023, desc:"EUV Lithographie — Monopolist Chipproduktion"},
+  {id:"miele",  name:"Miele",          ticker:"MIELE",   cat:"industry",logoKey:"Miele",       price:340,  vol:.010, desc:"Premium Haushaltsgeräte & Profiküchen"},
+  {id:"siemens",name:"Siemens",        ticker:"SIE.DE",  cat:"industry",logoKey:"Siemens",     price:182,  vol:.015, desc:"Industrie 4.0, Gebäudetechnik & Medizin"},
+  {id:"novonordisk",name:"Novo Nordisk",ticker:"NOVO.CO",cat:"pharma",  logoKey:"NovoNordisk", price:128,  vol:.016, desc:"Ozempic, Wegovy & Diabetes Weltmarktführer"},
+  {id:"loreal", name:"L'Oréal",        ticker:"OR.PA",   cat:"luxury",  logoKey:"LOreal",      price:445,  vol:.013, desc:"Kosmetik & Beauty Weltkonzern"},
+];
+
+const CARS_DATA = [
+  {id:"bmw_m2",        name:"BMW M2",                 brand:"BMW",          model:"M2 Competition",              ticker:"M2C",   cat:"sport",price:72000,  vol:.008,desc:"460 PS · Kompakter M-Purismus · 6-Gang Manuell"},
+  {id:"bmw_m3",        name:"BMW M3 Competition",     brand:"BMW",          model:"M3 Competition xDrive",       ticker:"M3C",   cat:"sport",price:98000,  vol:.008,desc:"510 PS · S58 Twin-Turbo · Touring auch verfügbar"},
+  {id:"bmw_m4",        name:"BMW M4 CSL",             brand:"BMW",          model:"M4 CSL",                      ticker:"M4CSL", cat:"sport",price:165000, vol:.009,desc:"550 PS · Leichtbau · 100 kg leichter als M4 Std."},
+  {id:"bmw_m4gts",     name:"BMW M4 GT3",             brand:"BMW",          model:"M4 GT3 Road Version",         ticker:"M4GT3", cat:"super",price:380000, vol:.010,desc:"590 PS · Homologations-Rennwagen · 500 Stück"},
+  {id:"bmw_m5",        name:"BMW M5 Competition",     brand:"BMW",          model:"M5 Competition",              ticker:"M5C",   cat:"sport",price:142000, vol:.008,desc:"625 PS · S63 V8 Twin-Turbo · 4WD Sport"},
+  {id:"bmw_m5cs",      name:"BMW M5 CS",              brand:"BMW",          model:"M5 CS",                       ticker:"M5CS",  cat:"super",price:195000, vol:.009,desc:"635 PS · Leichteste & stärkste M5 aller Zeiten"},
+  {id:"bmw_m8",        name:"BMW M8 Competition",     brand:"BMW",          model:"M8 Competition Coupé",        ticker:"M8C",   cat:"gran", price:165000, vol:.009,desc:"625 PS · V8 Biturbo · Gran Tourer de Luxe"},
+  {id:"bmw_xm",        name:"BMW XM Label Red",       brand:"BMW",          model:"XM Label Red",                ticker:"XMR",   cat:"super",price:185000, vol:.010,desc:"748 PS · Plug-in-Hybrid · Flagship M SUV"},
+  {id:"amg_a45",       name:"AMG A45 S",              brand:"Mercedes-AMG", model:"A45 S 4MATIC+",               ticker:"A45S",  cat:"sport",price:75000,  vol:.009,desc:"421 PS · Stärkster Serienmotor 2.0L weltweit"},
+  {id:"amg_c63",       name:"AMG C63 S E",            brand:"Mercedes-AMG", model:"C63 S E Performance",         ticker:"C63S",  cat:"sport",price:95000,  vol:.009,desc:"680 PS · F1-Hybrid-Technologie im Kompaktsport"},
+  {id:"amg_e63",       name:"AMG E63 S",              brand:"Mercedes-AMG", model:"E63 S 4MATIC+",               ticker:"E63S",  cat:"sport",price:115000, vol:.008,desc:"612 PS · Schnellster Kombi der Welt"},
+  {id:"amg_gt63",      name:"AMG GT 63 S",            brand:"Mercedes-AMG", model:"GT 63 S E Performance",       ticker:"GT63",  cat:"super",price:195000, vol:.009,desc:"843 PS · F1-Hybrid · Schnellstes AMG Serienfahrzeug"},
+  {id:"amg_gtr",       name:"AMG GT R Pro",           brand:"Mercedes-AMG", model:"GT R Pro",                    ticker:"GTRP",  cat:"super",price:175000, vol:.009,desc:"585 PS · Rennstrecken GT R · Track-Setup Werk"},
+  {id:"amg_one",       name:"AMG ONE",                brand:"Mercedes-AMG", model:"AMG ONE",                     ticker:"AMGONE",cat:"hyper",price:2750000,vol:.006,desc:"1063 PS · F1-Hybridmotor direkt aus der Formel 1 · 275 Stück"},
+  {id:"brabus_800",    name:"Brabus 800",             brand:"Brabus",       model:"800 (E63 Basis)",             ticker:"BR800", cat:"super",price:320000, vol:.009,desc:"800 PS · Brabus-V8 Biturbo · Exklusiv-Tuning"},
+  {id:"brabus_900",    name:"Brabus 900 Rocket",      brand:"Brabus",       model:"900 Rocket Edition",          ticker:"BR900", cat:"hyper",price:550000, vol:.008,desc:"900 PS · V12 Biturbo · Schnellstes Brabus-Modell"},
+  {id:"maybach_s680",  name:"Maybach S 680",          brand:"Maybach",      model:"Mercedes-Maybach S 680",      ticker:"MAY680",cat:"gran", price:220000, vol:.006,desc:"621 PS · V12 Biturbo · Ultraluxus-Limousine"},
+  {id:"maybach_gls",   name:"Maybach GLS 600",        brand:"Maybach",      model:"Mercedes-Maybach GLS 600",    ticker:"MAYGLS",cat:"gran", price:200000, vol:.007,desc:"558 PS · Maybach SUV · Vier-Sitzer Lounge"},
+  {id:"mansory_amg",   name:"Mansory AMG GTR",        brand:"Mansory",      model:"Mansory AMG GT R",            ticker:"MSAMG", cat:"hyper",price:480000, vol:.011,desc:"700 PS · Mansory Vollcarbon · 50 Stück weltweit"},
+  {id:"audi_rs3",      name:"Audi RS3 Sportback",     brand:"Audi",         model:"RS3 Sportback",               ticker:"RS3",   cat:"sport",price:68000,  vol:.009,desc:"400 PS · 5-Zylinder Ikone · Drift-Mode"},
+  {id:"audi_rs4",      name:"Audi RS4 Avant",         brand:"Audi",         model:"RS4 Avant Competition",       ticker:"RS4",   cat:"sport",price:98000,  vol:.008,desc:"450 PS · 2.9 TFSI V6 · Praktischer Sport-Kombi"},
+  {id:"audi_rs6",      name:"Audi RS6 Avant",         brand:"Audi",         model:"RS6 Avant Performance",       ticker:"RS6",   cat:"sport",price:142000, vol:.008,desc:"630 PS · V8 Biturbo · Ikone unter Familiensportwagen"},
+  {id:"audi_rs7",      name:"Audi RS7 Sportback",     brand:"Audi",         model:"RS7 Sportback Performance",   ticker:"RS7",   cat:"sport",price:152000, vol:.008,desc:"630 PS · Gran Turismo Coupé-Limousine"},
+  {id:"audi_rse",      name:"Audi RS e-tron GT",      brand:"Audi",         model:"RS e-tron GT Performance",    ticker:"RSE",   cat:"super",price:165000, vol:.009,desc:"630 PS · Elektrisch · Schnellste Audi Limousine"},
+  {id:"audi_r8",       name:"Audi R8 V10 GT RWD",     brand:"Audi",         model:"R8 V10 GT RWD",               ticker:"R8GT",  cat:"super",price:230000, vol:.010,desc:"620 PS · Natürlich Saug-V10 · 333 Stück Finale"},
+  {id:"porsche_911t",  name:"Porsche 911 Turbo S",    brand:"Porsche",      model:"911 Turbo S",                 ticker:"P911TS",cat:"super",price:242000, vol:.008,desc:"650 PS · 2.7s 0-100 · Alltagssportwagen"},
+  {id:"porsche_gt3",   name:"Porsche 911 GT3",        brand:"Porsche",      model:"911 GT3 (992)",               ticker:"PGT3",  cat:"super",price:185000, vol:.009,desc:"510 PS · Sauger · Manthey-Optionen verfügbar"},
+  {id:"porsche_gt3rs", name:"Porsche 911 GT3 RS",     brand:"Porsche",      model:"911 GT3 RS",                  ticker:"GT3RS", cat:"super",price:235000, vol:.008,desc:"525 PS · Wingsuit-Aerodynamik · Rennstrecken-König"},
+  {id:"porsche_gt2rs", name:"Porsche 911 GT2 RS",     brand:"Porsche",      model:"911 GT2 RS Weissach",         ticker:"GT2RS", cat:"super",price:290000, vol:.008,desc:"700 PS · Stärkster Serienporsche aller Zeiten"},
+  {id:"porsche_918",   name:"Porsche 918 Spyder",     brand:"Porsche",      model:"918 Spyder Weissach",         ticker:"P918",  cat:"hyper",price:1800000,vol:.006,desc:"887 PS · Hybrid-Hypercar · 918 Stück · Heilige Dreifaltigkeit"},
+  {id:"porsche_taycan",name:"Porsche Taycan Turbo GT",brand:"Porsche",      model:"Taycan Turbo GT",             ticker:"PTGT",  cat:"super",price:195000, vol:.009,desc:"1108 PS · Schnellster Elektro-Serienwagen 0-100"},
+  {id:"ferrari_sf90",  name:"Ferrari SF90 Stradale",  brand:"Ferrari",      model:"SF90 Stradale Assetto Fiorano",ticker:"SF90", cat:"super",price:620000, vol:.009,desc:"1000 PS · Plug-in-Hybrid · Schnellster Ferrari"},
+  {id:"ferrari_296",   name:"Ferrari 296 GTB",        brand:"Ferrari",      model:"296 GTB Assetto Fiorano",     ticker:"296GTB",cat:"super",price:340000, vol:.009,desc:"830 PS · V6 Hybrid Mittelmotor · Neues Konzept"},
+  {id:"ferrari_f8",    name:"Ferrari F8 Tributo",     brand:"Ferrari",      model:"F8 Spider",                   ticker:"F8TRB", cat:"super",price:285000, vol:.009,desc:"720 PS · V8 Twin-Turbo · Nachfolger 488 Pista"},
+  {id:"ferrari_812",   name:"Ferrari 812 Competizione",brand:"Ferrari",     model:"812 Competizione A",          ticker:"812CP", cat:"hyper",price:650000, vol:.008,desc:"830 PS · Sauger V12 · 610 Stück · Letzter V12 Front"},
+  {id:"ferrari_laferrari",name:"Ferrari LaFerrari",   brand:"Ferrari",      model:"LaFerrari Aperta",            ticker:"LAFF",  cat:"hyper",price:4500000,vol:.005,desc:"963 PS · F1-Hybrid · 210 Stück · Heilige Dreifaltigkeit"},
+  {id:"lambo_urus_s",  name:"Lamborghini Urus S",     brand:"Lamborghini",  model:"Urus S Performante",          ticker:"URUS",  cat:"sport",price:290000, vol:.010,desc:"666 PS · Super-SUV · Schnellster SUV Nürburgring"},
+  {id:"lambo_huracan", name:"Lamborghini Huracán STO",brand:"Lamborghini",  model:"Huracán STO",                 ticker:"HSTO",  cat:"super",price:390000, vol:.011,desc:"640 PS · Super Trofeo Omologata · Rennstrecke"},
+  {id:"lambo_evo",     name:"Lamborghini Huracán Tecnica",brand:"Lamborghini",model:"Huracán Tecnica",           ticker:"HTEC",  cat:"super",price:265000, vol:.010,desc:"640 PS · RWD · Nackte Sportwagen Perfektion"},
+  {id:"lambo_revuelto",name:"Lamborghini Revuelto",   brand:"Lamborghini",  model:"Revuelto V12 Hybrid",         ticker:"REVT",  cat:"hyper",price:590000, vol:.009,desc:"1001 PS · V12 Hybrid · Nachfolger Aventador"},
+  {id:"lambo_sian",    name:"Lamborghini Sián FKP 37",brand:"Lamborghini",  model:"Sián FKP 37",                 ticker:"SIAN",  cat:"hyper",price:3600000,vol:.006,desc:"819 PS · Hybrid Supercap · 63 Stück limitiert"},
+  {id:"mclaren_artura",name:"McLaren Artura",         brand:"McLaren",      model:"Artura Spider",               ticker:"ARTSP", cat:"super",price:290000, vol:.011,desc:"700 PS · Hybrid V6 · Neue Plattform"},
+  {id:"mclaren_750s",  name:"McLaren 750S",           brand:"McLaren",      model:"750S Spider",                 ticker:"750SP", cat:"super",price:380000, vol:.011,desc:"750 PS · V8 Twin-Turbo"},
+  {id:"mclaren_765",   name:"McLaren 765LT",          brand:"McLaren",      model:"765LT Spider",                ticker:"765SP", cat:"super",price:480000, vol:.010,desc:"765 PS · LongTail · 765 Einheiten · Gesucht"},
+  {id:"mclaren_senna", name:"McLaren Senna",          brand:"McLaren",      model:"Senna GTR",                   ticker:"SGTL",  cat:"hyper",price:1400000,vol:.007,desc:"825 PS · GTR Straßen-Rennwagen · 75 Stück"},
+  {id:"mclaren_p1",    name:"McLaren P1 GTR",         brand:"McLaren",      model:"P1 GTR Road Legal",           ticker:"P1GTR", cat:"hyper",price:2800000,vol:.006,desc:"1000 PS · Heilige Dreifaltigkeit · Straßenlegal"},
+  {id:"bugatti_chiron",name:"Bugatti Chiron Super Sport",brand:"Bugatti",   model:"Chiron Super Sport 300+",     ticker:"CHISS", cat:"hyper",price:3800000,vol:.005,desc:"1577 PS · 304 mph Weltrekord · 30 Stück"},
+  {id:"bugatti_divo",  name:"Bugatti Divo",           brand:"Bugatti",      model:"Divo",                        ticker:"BDIVO", cat:"hyper",price:5600000,vol:.004,desc:"1500 PS · Hypercar für Kurvenjäger · 40 Stück"},
+  {id:"bugatti_bolide",name:"Bugatti Bolide",         brand:"Bugatti",      model:"Bolide Track Car",            ticker:"BOLIDE",cat:"hyper",price:4700000,vol:.004,desc:"1850 PS · 500 kg leicht · Extremster Bugatti"},
+  {id:"koenigsegg_cc850",name:"Koenigsegg CC850",     brand:"Koenigsegg",   model:"CC850",                       ticker:"CC850", cat:"hyper",price:3700000,vol:.006,desc:"1385 PS · Einzel-Kupplung · 50 Stück Jubiläum"},
+  {id:"koenigsegg_jesko",name:"Koenigsegg Jesko Absolut",brand:"Koenigsegg",model:"Jesko Absolut",              ticker:"JESKO", cat:"hyper",price:3000000,vol:.005,desc:"1600 PS · Top Speed 330 mph Theorie"},
+  {id:"pagani_huayra", name:"Pagani Huayra Roadster BC",brand:"Pagani",     model:"Huayra Roadster BC",          ticker:"HRBC",  cat:"hyper",price:3100000,vol:.006,desc:"800 PS · V12 AMG · 40 Stück · Kunstwerk"},
+  {id:"pagani_utopia", name:"Pagani Utopia",          brand:"Pagani",       model:"Utopia Roadster",             ticker:"UTOP",  cat:"hyper",price:2800000,vol:.006,desc:"864 PS · Schönste Karosserie der Gegenwart"},
+  {id:"rolls_ghost",   name:"Rolls-Royce Ghost",      brand:"Rolls-Royce",  model:"Ghost Extended",              ticker:"RRGH",  cat:"gran", price:380000, vol:.006,desc:"571 PS · V12 · Spirit of Ecstasy in Stahl"},
+  {id:"rolls_cullinan",name:"Rolls-Royce Cullinan",   brand:"Rolls-Royce",  model:"Cullinan Black Badge",        ticker:"RRCU",  cat:"gran", price:480000, vol:.006,desc:"600 PS · V12 SUV · Teuerster Serien-SUV"},
+  {id:"rolls_spectre", name:"Rolls-Royce Spectre",    brand:"Rolls-Royce",  model:"Spectre EV",                  ticker:"RRSP",  cat:"gran", price:430000, vol:.007,desc:"577 PS · Elektrisch · Erster Rolls EV"},
+  {id:"bentley_cont",  name:"Bentley Continental GT Speed",brand:"Bentley", model:"Continental GT Speed Convertible",ticker:"BCON",cat:"gran",price:295000,vol:.007,desc:"659 PS · W12 Biturbo · Schnellste Bentley"},
+  {id:"bentley_mulliner",name:"Bentley Mulliner Bacalar",brand:"Bentley",   model:"Mulliner Bacalar",            ticker:"BMULL", cat:"hyper",price:1600000,vol:.006,desc:"650 PS · Barchetta · 12 Stück · Handgemacht"},
+  {id:"lotus_emira",   name:"Lotus Emira V6",         brand:"Lotus",        model:"Emira V6 First Edition",      ticker:"EMIRA", cat:"sport",price:92000,  vol:.012,desc:"400 PS · Letzter Verbrenner-Lotus · AMG-Motor"},
+  {id:"lotus_evija",   name:"Lotus Evija",            brand:"Lotus",        model:"Evija X",                     ticker:"EVIJA", cat:"hyper",price:2800000,vol:.008,desc:"2000 PS · Elektro-Hypercar · 130 Stück"},
+  {id:"ford_gt",       name:"Ford GT Heritage",       brand:"Ford",         model:"GT Heritage Edition",         ticker:"FORDGT",cat:"hyper",price:600000, vol:.010,desc:"660 PS · Le Mans Hommage · 350 Stück/Jahr"},
+  {id:"corvette_z06",  name:"Corvette Z06",           brand:"Corvette",     model:"C8 Z06 Z07 Package",          ticker:"Z06",   cat:"super",price:125000, vol:.011,desc:"670 PS · 5.5L Flat-Plane-Crank LT6 V8 Sauger"},
+  {id:"corvette_e_ray",name:"Corvette E-Ray",         brand:"Corvette",     model:"C8 E-Ray Hybrid",             ticker:"ERAY",  cat:"super",price:110000, vol:.010,desc:"655 PS · Erster Hybrid Corvette · Allrad"},
+  {id:"mansory_gt",    name:"Mansory Stallone GTS",   brand:"Mansory",      model:"Stallone GTS (Lambo Basis)",  ticker:"MSST",  cat:"hyper",price:650000, vol:.011,desc:"900 PS · Mansory Carbon-Umbau · 10 Stück"},
+  {id:"mansory_ferrari",name:"Mansory Ferrari Pista", brand:"Mansory",      model:"Fumya SP1 (Ferrari Basis)",   ticker:"MSFR",  cat:"hyper",price:850000, vol:.011,desc:"780 PS · Vollcarbon Karosserie · 3 Stück"},
+];
+
+const WATCHES_DATA = [
+  {id:"rolex_daytona",name:"Rolex Daytona",      brand:"Rolex",         logoKey:"Rolex",        model:"Cosmograph Daytona Ref. 116500",  ticker:"RDAY",  price:42000, vol:.007,desc:"Ikone des Motorsports · Keramik-Lünette · Oystersteel"},
+  {id:"rolex_sub",    name:"Rolex Submariner",   brand:"Rolex",         logoKey:"Rolex",        model:"Submariner Date Ref. 126610",     ticker:"RSUB",  price:16500, vol:.006,desc:"Klassischste Taucheruhr · 300m wasserdicht · Triplock"},
+  {id:"rolex_gmt",    name:"Rolex GMT-Master II",brand:"Rolex",         logoKey:"Rolex",        model:"GMT-Master II Sprite 126720",     ticker:"RGMT",  price:21000, vol:.007,desc:"Grün-Schwarz Cerachrom · Oyster Armband"},
+  {id:"rolex_pepsi",  name:"Rolex GMT Pepsi",    brand:"Rolex",         logoKey:"Rolex",        model:"GMT-Master II Pepsi 126710",      ticker:"RPEP",  price:25000, vol:.007,desc:"Rot-Blau Jubiläum · Begehrteste Rolex am Markt"},
+  {id:"rolex_sky",    name:"Rolex Sky-Dweller",  brand:"Rolex",         logoKey:"Rolex",        model:"Sky-Dweller 326934",              ticker:"RSKY",  price:32000, vol:.007,desc:"Jahreskalender · Zweitzeitzone · Kompliziert"},
+  {id:"rm_011",       name:"Richard Mille RM 011",brand:"RichardMille", logoKey:"RichardMille", model:"RM 011 Felipe Massa",             ticker:"RM011", price:230000,vol:.009,desc:"Flyback-Chronograph · Titan · Skeletton 42mm"},
+  {id:"rm_035",       name:"Richard Mille RM 035",brand:"RichardMille", logoKey:"RichardMille", model:"RM 035 Americas NTPT",            ticker:"RM035", price:190000,vol:.009,desc:"Ultraleicht 33g · NTPT Carbon · Manuell"},
+  {id:"rm_67",        name:"Richard Mille RM 67-02",brand:"RichardMille",logoKey:"RichardMille",model:"RM 67-02 Sprint",                ticker:"RM67",  price:145000,vol:.008,desc:"Extradünn · Athleten-Kollektion · FKT Harz"},
+  {id:"pp_nautilus",  name:"Patek Nautilus",     brand:"PatekPhilippe", logoKey:"PatekPhilippe",model:"Nautilus 5711/1A Steel",          ticker:"PP5711",price:160000,vol:.008,desc:"Heiliger Gral · Warteliste 10 Jahre · Edelstahl"},
+  {id:"pp_aquanaut",  name:"Patek Aquanaut",     brand:"PatekPhilippe", logoKey:"PatekPhilippe",model:"Aquanaut 5168G Tiffany",          ticker:"PP5168",price:120000,vol:.009,desc:"Tiffany-Blau · Weißgold · Limitiert 2022"},
+  {id:"pp_grand",     name:"Patek Grand Complications",brand:"PatekPhilippe",logoKey:"PatekPhilippe",model:"Grand Complications Ref. 5270",ticker:"PPGC",price:360000,vol:.007,desc:"Minutenrepetition · Perpetualkalender · Tourbillon"},
+  {id:"ap_roo",       name:"AP Royal Oak Offshore",brand:"AP",          logoKey:"AP",           model:"Royal Oak Offshore 26420",        ticker:"APOFF", price:78000, vol:.009,desc:'"The Beast" · 44mm · Forged Carbon · Chronograph'},
+  {id:"ap_ro",        name:"AP Royal Oak Jumbo", brand:"AP",            logoKey:"AP",           model:"Royal Oak Jumbo 15202",           ticker:"APRO",  price:98000, vol:.008,desc:"The Original · 39mm · Stahl · 1972 Gérald Genta"},
+  {id:"ap_roo_ss",    name:"AP Royal Oak Selfwinding",brand:"AP",       logoKey:"AP",           model:"Royal Oak 15500ST Blue",          ticker:"APROB", price:65000, vol:.008,desc:"Blue Petite Tapisserie · Stahl · Automatisch"},
+  {id:"omega_speed",  name:"Omega Speedmaster",  brand:"Omega",         logoKey:"Omega",        model:"Speedmaster Professional 310.30", ticker:"OMSP",  price:8200,  vol:.005,desc:"Einzige Uhr auf dem Mond · Handaufzug · Hesalit"},
+  {id:"cartier_santos",name:"Cartier Santos",    brand:"Cartier",       logoKey:"Cartier",      model:"Santos de Cartier WSSA0061",     ticker:"CTSAN", price:9800,  vol:.006,desc:"Erster Flieger der Geschichte · Interchangeable Armband"},
+  {id:"iwc_big",      name:"IWC Big Pilot",      brand:"IWC",           logoKey:"IWC",          model:"Big Pilot's Annual Calendar",     ticker:"IWCBP", price:28000, vol:.006,desc:"46mm · Jahreskalender · Blaues Zifferblatt"},
+  {id:"lange_1",      name:"A. Lange & Söhne Lange 1",brand:"LangeSoehne",logoKey:"LangeSoehne",model:"Lange 1 Ref. 191.032",           ticker:"LANG1", price:42000, vol:.007,desc:"Glashütte · Asymmetrisch · Outsize-Datum · Gold"},
+];
+
+const OTHER_ASSETS_DATA = [
+  {id:"btc",       name:"Bitcoin",           ticker:"BTC",   logoKey:"Bitcoin",  icon:"₿", cat:"crypto",      price:42000, vol:.048,desc:"Digitales Gold · 21M Stück · Proof of Work"},
+  {id:"eth",       name:"Ethereum",          ticker:"ETH",   logoKey:"Ethereum", icon:"Ξ", cat:"crypto",      price:2250,  vol:.052,desc:"Smart Contracts · DeFi · Proof of Stake"},
+  {id:"gold",      name:"Gold Spot (1 oz)",  ticker:"XAU",   logoKey:"Gold",     icon:"Au",cat:"commodity",   price:1960,  vol:.009,desc:"5000 Jahre Werterhalt · Inflationsschutz"},
+  {id:"silver",    name:"Silber Spot (1 oz)",ticker:"XAG",                       icon:"Ag",cat:"commodity",   price:24.8,  vol:.019,desc:"Industrie & Investment · Solarenergie"},
+  {id:"platinum",  name:"Platin (1 oz)",     ticker:"XPT",                       icon:"Pt",cat:"commodity",   price:1020,  vol:.016,desc:"Seltener als Gold · Wasserstoff & Katalysator"},
+  {id:"re_berlin", name:"Apt. Berlin Mitte", ticker:"REBI",                      icon:"🏢",cat:"realestate",  price:485000,vol:.006,desc:"72qm Altbau · Prenzlauer Berg · Vollvermietet"},
+  {id:"re_miami",  name:"Miami Beach Condo", ticker:"REMI",                      icon:"🌴",cat:"realestate",  price:820000,vol:.009,desc:"3BR Oceanview · South Beach · Airbnb-Ready"},
+  {id:"wine_petrus",name:"Château Pétrus 2000",ticker:"CPET",                    icon:"🍷",cat:"collectibles",price:32000, vol:.010,desc:"Pomerol Premier · Kiste 12×0.75L · OHK"},
+  {id:"art_basquiat",name:"Basquiat Siebdruck",ticker:"ARTB",                    icon:"🎨",cat:"art",         price:92000, vol:.013,desc:"Limitierter signierter Siebdruck · 50 Exemplare"},
+  {id:"lego_technic",name:"LEGO Technic Bugatti",ticker:"LEGO",                  icon:"🧱",cat:"collectibles",price:450,   vol:.020,desc:"Set #42151 · OVP versiegelt · 905 Teile"},
+];
+
+const UPGRADES_DATA = [
+  {
+    id:"analyst",name:"Market Analyst KI",icon:"📊",cost:50000,
+    desc:"Eine KI analysiert Kursmuster und erkennt Trends 2× schneller als ohne Upgrade.",
+    mechanic:"Der Ticker scrollt nach dem Kauf doppelt so schnell. Du siehst Kursschwankungen früher und kannst gezielter auf Marktbewegungen reagieren.",
+    effect:"Ticker 2× schneller"
+  },
+  {
+    id:"insider",name:"Insider-Netzwerk",icon:"🤝",cost:120000,
+    desc:"Zugang zu einem exklusiven Netzwerk aus Bankern, Händlern und Werks-Kontakten.",
+    mechanic:"Neue Sonderedition-Fahrzeuge und limitierte Uhrenmodelle erscheinen in deinem Shop. Ohne dieses Upgrade sind diese Assets nicht kaufbar.",
+    effect:"Exklusive Assets freischalten"
+  },
+  {
+    id:"taxopt",name:"Steueroptimierung",icon:"📋",cost:75000,
+    desc:"Schweizer Holdingstruktur über Genf. Alle Kapitalgewinne werden steuerfrei verrechnet.",
+    mechanic:"Beim Verkauf wird kein Steuerabzug berechnet. Dein Verkaufserlös kommt vollständig gutgeschrieben — du behältst 100% des Gewinns statt den üblichen 70%.",
+    effect:"0% Kapitalertragsteuer"
+  },
+  {
+    id:"prime",name:"Prime Dealer Zugang",icon:"🏆",cost:250000,
+    desc:"Direkter Werkskontakt zu Ferrari, Porsche, Rolls-Royce und Bugatti. Keine Händlermarge.",
+    mechanic:"Neue Fahrzeuge kaufst du zum offiziellen Listenpreis ohne Aufschlag. Bei limitierten Modellen sparst du bis zu 40% gegenüber dem aktuellen Marktpreis.",
+    effect:"Listenpreis bei Neufahrzeugen"
+  },
+  {
+    id:"autobot",name:"Trading-Bot",icon:"🤖",cost:380000,
+    desc:"Ein Algorithmus überwacht alle Positionen rund um die Uhr und handelt vollautomatisch.",
+    mechanic:"Bei −15% Kursrückgang kauft der Bot automatisch nach. Bei +25% über deinem Einstiegspreis wird automatisch mit Gewinn verkauft. Kein manuelles Eingreifen nötig.",
+    effect:"Auto-Trading bei −15% / +25%"
+  },
+  {
+    id:"vault",name:"Zollfreilager Genf",icon:"🏛",cost:160000,
+    desc:"Ein zertifiziertes Freilager in Genf für Fahrzeuge, Uhren und Sachwerte.",
+    mechanic:"Sachwerte (Autos, Uhren, Kunst) verlieren keinen Wert durch Lagerung oder Transport. Schützt gegen zufällige Wertverlust-Events auf physische Assets.",
+    effect:"Keine Lager-/Transportverluste"
+  },
+  {
+    id:"gallery",name:"Private Gallery",icon:"🖼",cost:90000,
+    desc:"Eine kuratierte Privatgalerie steigert die Sichtbarkeit deiner Kunstsammlung weltweit.",
+    mechanic:"Alle Kunst- und Collectible-Assets steigen 20% schneller im Wert. Auf Aufwärtsbewegungen wird intern ein ×1.2 Multiplikator angewandt.",
+    effect:"Kunst & Collectibles +20% Wachstum"
+  },
+  {
+    id:"leverage",name:"Leverage 2×",icon:"⚖",cost:200000,
+    desc:"Eine gesicherte Kreditlinie bei einer Schweizer Privatbank wird aktiviert.",
+    mechanic:"Du kannst Assets im Wert von bis zu 2× deines verfügbaren Kapitals kaufen. Die Kreditlinie wird automatisch verrechnet — Fremdkapital für größere Positionen.",
+    effect:"Kaufkraft ×2"
+  },
+];
+
+const ALL_ASSETS = [...STOCKS_DATA,...CARS_DATA,...WATCHES_DATA,...OTHER_ASSETS_DATA];
+
+// ═══════════════════════════════════════════════════════════════
+// GAME STATE
+// ═══════════════════════════════════════════════════════════════
+function initPrices(){
+  const prices={},history={};
+  ALL_ASSETS.forEach(a=>{prices[a.id]=a.price;history[a.id]=[a.price];});
+  return {prices,history};
+}
+const {prices:initP,history:initH}=initPrices();
+let GS = {
+  cash:500000,startCash:500000,portfolio:{},upgrades:{},
+  prices:{...initP},history:{...initH},
+  date:new Date(2020,0,1),
+  newsFeed:[],
+  carColors:{},watchColors:{},
+};
+let currentPanel="dashboard";
+let currentModal=null;
+let selectedColor=null;
+let buyQty=1,sellQty=1;
+let carCat="all",stockCat="all",searchQ="";
+let notifTimer=null;
+let chartRange=20; // number of history ticks shown in modal chart
+
+// ═══════════════════════════════════════════════════════════════
+// GAME TICK — started by startGame()
+// ═══════════════════════════════════════════════════════════════
+
+// ═══════════════════════════════════════════════════════════════
+// UTILS
+// ═══════════════════════════════════════════════════════════════
+function fmtDate(d){return d.toLocaleDateString("de-DE",{day:"2-digit",month:"short",year:"numeric"});}
+function fmt(n){
+  if(n===undefined||n===null)return"—";
+  if(n>=1e6)return"$"+(n/1e6).toFixed(2)+"M";
+  if(n>=1000)return"$"+Math.round(n).toLocaleString("de-DE");
+  return"$"+n.toFixed(2);
+}
+function fmtPct(n){return(n>=0?"+":"")+n.toFixed(2)+"%";}
+function portValue(){
+  return Object.entries(GS.portfolio).reduce((s,[id,p])=>s+(GS.prices[id]||0)*p.qty,0);
+}
+function totalPnL(){return GS.cash+portValue()-(GS.startCash||500000);}
+function getChange(id){
+  const h=GS.history[id];
+  if(!h||h.length<2)return 0;
+  const prev=h[Math.max(0,h.length-12)];
+  return((GS.prices[id]-prev)/prev)*100;
+}
+function sparklineSVG(data,color,w=80,h=28,fill=false){
+  if(!data||data.length<2)return"";
+  const min=Math.min(...data),max=Math.max(...data),range=max-min||1;
+  const pts=data.map((v,i)=>`${(i/(data.length-1)*w).toFixed(1)},${(h-((v-min)/range)*(h-2)).toFixed(1)}`).join(" ");
+  if(fill){
+    const id="sg"+Math.random().toString(36).slice(2,7);
+    const xN=w.toString();
+    return`<svg class="spark-gradient" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
+      <defs><linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="${color}" stop-opacity="0.2"/>
+        <stop offset="100%" stop-color="${color}" stop-opacity="0.01"/>
+      </linearGradient></defs>
+      <polygon points="0,${h} ${pts} ${xN},${h}" fill="url(#${id})"/>
+      <polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/>
+    </svg>`;
+  }
+  return`<svg class="spark" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linejoin="round"/></svg>`;
+}
+
+function setChartRange(ticks){
+  chartRange=ticks;
+  renderModal();
+}
+
+function proxyImg(url){ return url||null; }
+function proxyImgWatch(url){ return url||null; }
+function proxyLogoImg(url){ return url||null; }
+
+function brandLogoHTML(key,size=40){
+  const url=BRAND_LOGOS[key];
+  const abbr=((key||"?").replace(/[^A-Z0-9]/gi,"").slice(0,3)||"?").toUpperCase();
+  const fs=Math.floor(size*.32);
+  const fallbackStyle=`font-size:${fs}px;color:var(--gold);font-weight:700;letter-spacing:-.02em`;
+  const wrapStyle=`width:${size}px;height:${size}px;background:var(--card);border-radius:8px;overflow:hidden;display:flex;align-items:center;justify-content:center;flex-shrink:0`;
+  if(url){
+    // Use object-fit:contain so logos don't get cropped; white-ish logos on transparent bg need a dark bg
+    const imgStyle=`width:${size-4}px;height:${size-4}px;object-fit:contain`;
+    return`<div style="${wrapStyle}"><img src="${url}" alt="${key}" loading="lazy" style="${imgStyle}" onerror="this.outerHTML='<span style=\\'${fallbackStyle}\\'>${abbr}</span>'"/></div>`;
+  }
+  return`<div style="${wrapStyle}"><span style="${fallbackStyle}">${abbr}</span></div>`;
+}
+
+function showNotif(title,body,success=true){
+  const el=document.getElementById("notif");
+  document.getElementById("notif-title").textContent=title;
+  document.getElementById("notif-body").textContent=body;
+  el.className=success?"success":"error";
+  el.style.display="block";
+  if(notifTimer)clearTimeout(notifTimer);
+  notifTimer=setTimeout(()=>{el.style.display="none";},3000);
+}
+
+function setActiveNav(panel){
+  document.querySelectorAll("#sidenav button").forEach((b,i)=>{
+    const panels=["dashboard","stocks","cars","watches","assets","upgrades","news"];
+    b.className=panels[i]===panel?"active":"";
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════
+// ACTIONS
+// ═══════════════════════════════════════════════════════════════
+function buy(assetId,qty){
+  const asset=ALL_ASSETS.find(a=>a.id===assetId);if(!asset)return;
+  const price=GS.prices[assetId],cost=price*qty;
+  if(cost>GS.cash){showNotif("Kein Kapital ✗","Nur "+fmt(GS.cash)+" verfügbar",false);return;}
+  const port={...GS.portfolio};
+  if(!port[assetId])port[assetId]={qty:0,avgCost:0};
+  const old=port[assetId];
+  port[assetId]={qty:old.qty+qty,avgCost:(old.avgCost*old.qty+cost)/(old.qty+qty)};
+  GS={...GS,cash:GS.cash-cost,portfolio:port};
+  showNotif("Gekauft ✓",`${qty}× ${asset.name} für ${fmt(cost)}`,true);
+  updateHeader();
+  if(currentPanel!=="dashboard")renderPanelInPlace();
+  if(currentModal)updateModalInPlace();
+}
+function sell(assetId,qty){
+  const asset=ALL_ASSETS.find(a=>a.id===assetId);if(!asset)return;
+  const pos=GS.portfolio[assetId];
+  if(!pos||pos.qty<qty){showNotif("Kein Bestand ✗","Nicht genug im Portfolio",false);return;}
+  const price=GS.prices[assetId],income=price*qty;
+  const hasTax=!GS.upgrades["taxopt"];
+  const gain=(price-pos.avgCost)*qty;
+  const tax=(hasTax&&gain>0)?gain*0.30:0;
+  const net=income-tax;
+  const port={...GS.portfolio};
+  const newQty=port[assetId].qty-qty;
+  if(newQty<=0)delete port[assetId];
+  else port[assetId]={...port[assetId],qty:newQty};
+  GS={...GS,cash:GS.cash+net,portfolio:port};
+  const taxNote=tax>0?` (${fmt(tax)} Steuer)`:""
+  showNotif("Verkauft ✓",`${qty}× ${asset.name} für ${fmt(net)}${taxNote}`,true);
+  sellQty=1;
+  updateHeader();
+  if(currentPanel!=="dashboard")renderPanelInPlace();
+  if(currentModal)updateModalInPlace();
+}
+function renderPanelInPlace(){
+  // lightweight re-render of just the content area, preserving scroll position
+  const el=document.getElementById("content");
+  const scrollTop=el.scrollTop;
+  render();
+  el.scrollTop=scrollTop;
+}
+function updateModalInPlace(){
+  if(!currentModal)return;
+  const {asset,type}=currentModal;
+  const price=GS.prices[asset.id];
+  const owned=GS.portfolio[asset.id];
+  const maxBuy=Math.floor(GS.cash/price);
+  const maxSell=owned?owned.qty:0;
+  // clamp quantities to valid ranges
+  buyQty=Math.max(1,Math.min(buyQty,maxBuy||1));
+  sellQty=Math.max(1,Math.min(sellQty,maxSell||1));
+  // update buy side
+  const bqi=document.getElementById("buy-qty-in");
+  const bt=document.getElementById("buy-total");
+  const btnBuy=document.getElementById("modal-btn-buy");
+  const bMax=document.getElementById("buy-max-val");
+  if(bqi)bqi.value=buyQty;
+  if(bt)bt.textContent="Gesamt: "+fmt(price*buyQty);
+  if(btnBuy)btnBuy.disabled=(price*buyQty>GS.cash);
+  if(bMax)bMax.textContent="MAX "+maxBuy+"×";
+  // update sell side
+  const sqi=document.getElementById("sell-qty-in");
+  const st=document.getElementById("sell-total");
+  const btnSell=document.getElementById("modal-btn-sell");
+  const sMax=document.getElementById("sell-max-val");
+  if(sqi)sqi.value=sellQty;
+  if(st)st.textContent="Erlös: "+fmt(price*sellQty);
+  if(btnSell)btnSell.disabled=(!owned||owned.qty<sellQty);
+  if(sMax)sMax.textContent="MAX "+maxSell+"×";
+  // update owned stats
+  const ownedEl=document.getElementById("modal-owned-qty");
+  const buyPowerEl=document.getElementById("modal-buy-power");
+  if(ownedEl)ownedEl.textContent=(owned?owned.qty+"×":"0×");
+  if(buyPowerEl)buyPowerEl.textContent=maxBuy+"×";
+  // update PnL box
+  const pnlBox=document.getElementById("modal-pnl-box");
+  if(pnlBox){
+    if(owned){
+      pnlBox.innerHTML=`
+        <div style="text-align:center"><div style="font-size:9px;color:var(--dim);text-transform:uppercase;letter-spacing:.1em">Kaufkurs Ø</div><div style="font-size:14px;font-family:'DM Mono',monospace;color:var(--text)">${fmt(owned.avgCost)}</div></div>
+        <div style="text-align:center"><div style="font-size:9px;color:var(--dim);text-transform:uppercase;letter-spacing:.1em">Unrealisiert P/L</div><div style="font-size:14px;font-family:'DM Mono',monospace;color:${price>owned.avgCost?"var(--green)":"var(--red)"}">
+          ${fmt((price-owned.avgCost)*owned.qty)} (${fmtPct(((price-owned.avgCost)/owned.avgCost)*100)})</div></div>`;
+      pnlBox.style.display="flex";
+    } else {
+      pnlBox.style.display="none";
+    }
+  }
+}
+function setPackQty(side,qty){
+  if(!currentModal)return;
+  const price=GS.prices[currentModal.asset.id];
+  const owned=GS.portfolio[currentModal.asset.id];
+  if(side==="buy"){
+    const maxBuy=Math.floor(GS.cash/price);
+    buyQty=qty==="max"?Math.max(1,maxBuy):Math.max(1,Math.min(qty,maxBuy));
+  } else {
+    const maxSell=owned?owned.qty:0;
+    sellQty=qty==="max"?Math.max(1,maxSell):Math.max(1,Math.min(qty,maxSell));
+  }
+  updateModalInPlace();
+  // highlight active pack button
+  document.querySelectorAll(`.pack-btn-${side}`).forEach(b=>b.classList.remove("pack-active"));
+  const key=qty==="max"?"max":qty;
+  const activeBtn=document.getElementById(`pack-${side}-${key}`);
+  if(activeBtn)activeBtn.classList.add("pack-active");
+}
+function buyUpgrade(id){
+  const u=UPGRADES_DATA.find(x=>x.id===id);
+  if(!u||GS.upgrades[id])return;
+  if(GS.cash<u.cost){showNotif("Kein Kapital ✗","Benötige "+fmt(u.cost),false);return;}
+  GS={...GS,cash:GS.cash-u.cost,upgrades:{...GS.upgrades,[id]:true}};
+  showNotif("Upgrade aktiv ✓",u.name+" freigeschaltet",true);
+  render();
+}
+function setPanel(p){
+  currentPanel=p;searchQ="";
+  setActiveNav(p);
+  render();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// HEADER + TICKER
+// ═══════════════════════════════════════════════════════════════
+function updateHeader(){
+  const pVal=portValue(),pnl=totalPnL();
+  document.getElementById("h-date").textContent=fmtDate(GS.date);
+  document.getElementById("h-cash").textContent=fmt(GS.cash);
+  document.getElementById("h-port").textContent=fmt(pVal);
+  const hpnl=document.getElementById("h-pnl");
+  hpnl.textContent=fmt(pnl);
+  hpnl.style.color=pnl>=0?"var(--green)":"var(--red)";
+}
+function updateTicker(){
+  const assets=[...STOCKS_DATA.slice(0,8),...CARS_DATA.slice(0,4)];
+  let html="";
+  assets.forEach(a=>{
+    const chg=getChange(a.id);
+    const col=chg>=0?"var(--green)":"var(--red)";
+    html+=`<span style="font-size:11px;font-family:'DM Mono',monospace;padding:0 .5rem">
+      <span style="color:var(--dim)">${a.ticker} </span>
+      <span style="color:var(--text)">${fmt(GS.prices[a.id])} </span>
+      <span style="color:${col}">${chg>=0?"▲":"▼"}${Math.abs(chg).toFixed(2)}%</span>
+    </span>`;
+  });
+  document.getElementById("ticker-inner").innerHTML=html+html;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// ASSET CARD HTML
+// ═══════════════════════════════════════════════════════════════
+function assetCardHTML(asset,type,idx=0){
+  const animStyle="";
+  const price=GS.prices[asset.id];
+  const chg=getChange(asset.id);
+  const up=chg>=0;
+  const hist=GS.history[asset.id]||[];
+  const owned=GS.portfolio[asset.id];
+  const logoKey=asset.logoKey||asset.brand||asset.logo;
+
+  // Car card: brand logo + info (no car photo)
+  if(type==="car"){
+    return`<div class="asset-card${owned?" owned":""}" style="${animStyle}" onclick="openModal('${asset.id}','${type}')">
+      ${owned?`<div class="owned-badge">×${owned.qty}</div>`:""}
+      <div class="card-top-row">${brandLogoHTML(logoKey,36)}<div><div class="card-name">${asset.name}</div><div class="card-ticker">${asset.ticker}</div></div></div>
+      <div style="font-size:11px;color:var(--muted);margin-top:2px;line-height:1.5">${asset.desc}</div>
+      <div class="card-price">${fmt(price)}</div>
+      <div class="card-bottom">
+        <span class="card-chg ${up?"up":"dn"}">${up?"▲":"▼"} ${Math.abs(chg).toFixed(2)}%</span>
+        ${sparklineSVG(hist.slice(-20),up?"var(--green)":"var(--red)",60,22)}
+      </div>
+    </div>`;
+  }
+
+  // Watch card: logo + watch photo side by side
+  if(type==="watch"){
+    const rawUrl=WATCH_IMAGES[asset.id];
+    const imgUrl=rawUrl?proxyImgWatch(rawUrl):null;
+    const watchImgHTML=imgUrl
+      ?`<div class="card-watch-img"><img src="${imgUrl}" alt="${asset.name}" loading="lazy" onerror="this.style.display='none';this.parentNode.querySelector('.card-watch-fallback').style.display='flex'"/><div class="card-watch-fallback" style="display:none">⌚</div></div>`
+      :`<div class="card-watch-img" style="position:relative"><div class="card-watch-fallback" style="display:flex">⌚</div></div>`;
+    return`<div class="asset-card${owned?" owned":""}" style="${animStyle}" onclick="openModal('${asset.id}','${type}')">
+      ${owned?`<div class="owned-badge">×${owned.qty}</div>`:""}
+      <div style="display:flex;gap:8px;align-items:flex-start">
+        ${watchImgHTML}
+        <div style="flex:1;min-width:0">
+          ${brandLogoHTML(logoKey,28)}
+          <div class="card-name" style="font-size:12px;margin-top:4px">${asset.name}</div>
+          <div class="card-ticker">${asset.ticker}</div>
+        </div>
+      </div>
+      <div class="card-price">${fmt(price)}</div>
+      <div class="card-bottom">
+        <span class="card-chg ${up?"up":"dn"}">${up?"▲":"▼"} ${Math.abs(chg).toFixed(2)}%</span>
+        ${sparklineSVG(hist.slice(-20),up?"var(--green)":"var(--red)",60,22)}
+      </div>
+    </div>`;
+  }
+
+  // Stock / Other: logo + name
+  const iconOrLogo = asset.logoKey ? brandLogoHTML(asset.logoKey,40) :
+    `<div style="width:40px;height:40px;border-radius:8px;background:var(--card);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">${asset.icon||"💎"}</div>`;
+  return`<div class="asset-card${owned?" owned":""}" style="${animStyle}" onclick="openModal('${asset.id}','${type}')">
+    ${owned?`<div class="owned-badge">×${owned.qty}</div>`:""}
+    ${iconOrLogo}
+    <div class="card-name">${asset.name}</div>
+    <div class="card-ticker">${asset.ticker}</div>
+    <div class="card-price">${fmt(price)}</div>
+    <div class="card-bottom">
+      <span class="card-chg ${up?"up":"dn"}">${up?"▲":"▼"} ${Math.abs(chg).toFixed(2)}%</span>
+      ${sparklineSVG(hist.slice(-20),up?"var(--green)":"var(--red)",60,22)}
+    </div>
+  </div>`;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// RENDER PANELS
+// ═══════════════════════════════════════════════════════════════
+function render(){
+  const el=document.getElementById("content");
+  if(currentPanel==="dashboard")el.innerHTML=renderDashboard();
+  else if(currentPanel==="stocks")el.innerHTML=renderStocks();
+  else if(currentPanel==="cars")el.innerHTML=renderCars();
+  else if(currentPanel==="watches")el.innerHTML=renderWatches();
+  else if(currentPanel==="assets")el.innerHTML=renderAssets();
+  else if(currentPanel==="upgrades")el.innerHTML=renderUpgrades();
+  else if(currentPanel==="news")el.innerHTML=renderNews();
+}
+
+function renderDashboard(){
+  const pVal=portValue(),pnl=totalPnL();
+  const entries=Object.entries(GS.portfolio);
+  let tableRows="";
+  if(!entries.length){
+    tableRows=`<tr><td colspan="7" class="empty">Noch keine Positionen. Kaufe Assets über die Menüpunkte.</td></tr>`;
+  } else {
+    entries.forEach(([id,pos])=>{
+      const a=ALL_ASSETS.find(x=>x.id===id);if(!a)return;
+      const curr=GS.prices[id],val=curr*pos.qty,cost=pos.avgCost*pos.qty;
+      const pl=val-cost,pct=(pl/cost)*100;
+      const up=pl>=0,col=up?"var(--green)":"var(--red)";
+      const type=a.cat==="crypto"||a.cat==="commodity"||a.cat==="realestate"||a.cat==="art"||a.cat==="collectibles"?"other":a.brand?(a.vol<0.007?"watch":"car"):"stock";
+      tableRows+=`<tr onclick="openModal('${id}','${type}')">
+        <td style="padding:10px"><span style="font-family:'DM Mono',monospace;font-weight:700;color:var(--gold);font-size:12px">${a.ticker}</span><br><span style="font-size:11px;color:var(--muted)">${a.name}</span></td>
+        <td style="padding:10px;font-family:'DM Mono',monospace">${pos.qty}</td>
+        <td style="padding:10px;font-family:'DM Mono',monospace;font-size:12px">${fmt(pos.avgCost)}</td>
+        <td style="padding:10px;font-family:'DM Mono',monospace;font-size:12px">${fmt(curr)}</td>
+        <td style="padding:10px;font-family:'DM Mono',monospace;font-size:12px">${fmt(val)}</td>
+        <td style="padding:10px;font-family:'DM Mono',monospace;font-size:12px;color:${col}">${fmt(pl)}</td>
+        <td style="padding:10px;font-size:12px;color:${col}">${fmtPct(pct)}</td>
+      </tr>`;
+    });
+  }
+  return`
+    <div >
+    <div class="section-title">MEIN PORTFOLIO</div>
+    <div class="section-sub">Gesamtübersicht aller Positionen</div>
+    <div class="kpi-grid">
+      <div class="kpi-card"><div class="kpi-label">Verfügbar</div><div class="kpi-val" style="color:var(--gold)">${fmt(GS.cash)}</div></div>
+      <div class="kpi-card"><div class="kpi-label">Portfolio</div><div class="kpi-val" style="color:var(--gold)">${fmt(pVal)}</div></div>
+      <div class="kpi-card"><div class="kpi-label">Gesamt</div><div class="kpi-val" style="color:var(--gold)">${fmt(GS.cash+pVal)}</div></div>
+      <div class="kpi-card"><div class="kpi-label">P/L</div><div class="kpi-val" style="color:${pnl>=0?"var(--green)":"var(--red)"}">${fmt(pnl)}</div></div>
+    </div>
+    <div style="font-size:16px;font-weight:700;color:var(--gold);margin-bottom:.75rem">Positionen</div>
+    <div style="background:var(--panel);border:1px solid var(--gold-dim);border-radius:14px;overflow:hidden;overflow-x:auto">
+      <table class="port-table">
+        <thead><tr>${["Asset","Menge","Kaufkurs Ø","Aktuell","Wert","P/L","%"].map(h=>`<th>${h}</th>`).join("")}</tr></thead>
+        <tbody>${tableRows}</tbody>
+      </table>
+    </div>
+    </div>`;
+}
+
+function renderStocks(){
+  const filtered=STOCKS_DATA.filter(a=>
+    (stockCat==="all"||a.cat===stockCat)&&
+    (!searchQ||a.name.toLowerCase().includes(searchQ.toLowerCase())||a.ticker.toLowerCase().includes(searchQ.toLowerCase()))
+  );
+  const cats=["all","tech","auto","luxury","industry","pharma"];
+  const catLabels={all:"Alle",tech:"Tech",auto:"Auto",luxury:"Luxury",industry:"Industry",pharma:"Pharma"};
+  return`
+    <div class="section-title">AKTIENMARKT</div>
+    <div class="section-sub">20 Unternehmen · Realtime-Simulation</div>
+    <div class="filter-bar">
+      <input value="${searchQ}" oninput="searchQ=this.value;render()" placeholder="Suche..."/>
+      ${cats.map(c=>`<button class="filter-btn${stockCat===c?" active":""}" onclick="stockCat='${c}';render()">${catLabels[c]}</button>`).join("")}
+    </div>
+    <div class="grid-cards">${filtered.map((a,i)=>assetCardHTML(a,"stock",i)).join("")}</div>`;
+}
+
+function renderCars(){
+  const filtered=CARS_DATA.filter(a=>
+    (carCat==="all"||a.cat===carCat)&&
+    (!searchQ||a.name.toLowerCase().includes(searchQ.toLowerCase())||a.brand.toLowerCase().includes(searchQ.toLowerCase()))
+  );
+  const cats=["all","sport","super","gran","hyper"];
+  const catLabels={all:"Alle",sport:"Sport",super:"Super",gran:"Gran Tourer",hyper:"Hyper"};
+  return`
+    <div class="section-title">AUTOMOBILE</div>
+    <div class="section-sub">60+ Modelle · M-Reihe · RS · AMG · Maybach · Mansory · Hypercar</div>
+    <div class="filter-bar">
+      <input value="${searchQ}" oninput="searchQ=this.value;render()" placeholder="Marke oder Modell..." style="width:220px"/>
+      ${cats.map(c=>`<button class="filter-btn${carCat===c?" active":""}" onclick="carCat='${c}';render()">${catLabels[c]}</button>`).join("")}
+    </div>
+    <div class="grid-cards">${filtered.map((a,i)=>assetCardHTML(a,"car",i)).join("")}</div>`;
+}
+
+function renderWatches(){
+  return`
+    <div class="section-title">UHREN & ZEITMESSER</div>
+    <div class="section-sub">Rolex · Richard Mille · Patek Philippe · Audemars Piguet</div>
+    <div class="grid-cards">${WATCHES_DATA.map((a,i)=>assetCardHTML(a,"watch",i)).join("")}</div>`;
+}
+
+function renderAssets(){
+  return`
+    <div class="section-title">SACHWERTE & ROHSTOFFE</div>
+    <div class="section-sub">Krypto · Edelmetalle · Immobilien · Kunst · Collectibles</div>
+    <div class="grid-cards">${OTHER_ASSETS_DATA.map((a,i)=>assetCardHTML(a,"other",i)).join("")}</div>`;
+}
+
+function renderUpgrades(){
+  return`
+    <div class="section-title">UPGRADES</div>
+    <div class="section-sub">Verbessere deine Investmentstrategie</div>
+    <div class="grid-upgrades">
+      ${UPGRADES_DATA.map(u=>{
+        const owned=GS.upgrades[u.id];
+        const canBuy=GS.cash>=u.cost;
+        return`<div class="upgrade-card${owned?" owned":""}">
+          <div class="upgrade-icon">${u.icon}</div>
+          <div class="upgrade-name">${u.name}</div>
+          <div class="upgrade-desc">${u.desc}</div>
+          <div class="upgrade-mechanic">
+            <b style="color:var(--gold);font-size:10px;text-transform:uppercase;letter-spacing:.08em">⚙ Wie es funktioniert</b><br>
+            ${u.mechanic}
+          </div>
+          <div class="upgrade-effect">✦ ${u.effect}</div>
+          ${owned
+            ?`<div style="color:var(--green);font-size:13px;font-weight:600;padding:6px 0">✓ Aktiv & freigeschaltet</div>`
+            :`<div style="font-family:'DM Mono',monospace;font-size:14px;color:var(--gold);margin-bottom:8px;font-weight:700">${fmt(u.cost)}</div>
+             <button class="btn-upgrade" ${canBuy?"":"disabled"} onclick="buyUpgrade('${u.id}')">${canBuy?"KAUFEN":"ZU WENIG KAPITAL"}</button>`
+          }
+        </div>`;
+      }).join("")}
+    </div>`;
+}
+
+function renderNews(){
+  return`
+    <div class="section-title">MARKT-NEWS</div>
+    <div class="section-sub">Ereignisse beeinflussen Kurse in Echtzeit</div>
+    <div style="max-width:640px">
+      ${GS.newsFeed.length
+        ?GS.newsFeed.map(n=>`<div class="news-item"><div class="news-time">${n.time}</div><div class="news-text">${n.text}</div></div>`).join("")
+        :`<div style="color:var(--dim);font-size:14px">Warte auf Marktbewegungen...</div>`}
+    </div>`;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// MODAL
+// ═══════════════════════════════════════════════════════════════
+function openModal(assetId,type){
+  const asset=ALL_ASSETS.find(a=>a.id===assetId);
+  if(!asset)return;
+  buyQty=1;sellQty=1;
+  if(type==="car")selectedColor=CAR_COLORS.find(c=>c.hex===GS.carColors[assetId])||CAR_COLORS[0];
+  else if(type==="watch")selectedColor=WATCH_COLORS.find(c=>c.hex===GS.watchColors[assetId])||WATCH_COLORS[0];
+  else selectedColor=null;
+  currentModal={asset,type};
+  document.getElementById("modal-overlay").classList.add("open");
+  renderModal();
+}
+function closeModal(){
+  document.getElementById("modal-overlay").classList.remove("open");
+  currentModal=null;
+}
+function renderModal(){
+  if(!currentModal)return;
+  const {asset,type}=currentModal;
+  const price=GS.prices[asset.id];
+  const chg=getChange(asset.id);
+  const up=chg>=0;
+  const owned=GS.portfolio[asset.id];
+  const hist=GS.history[asset.id]||[price];
+  const maxBuy=Math.floor(GS.cash/price);
+  const maxSell=owned?owned.qty:0;
+  const isCar=type==="car";
+  const isWatch=type==="watch";
+  const colList=isCar?CAR_COLORS:isWatch?WATCH_COLORS:null;
+  const selCol=selectedColor?.hex||"#CC0000";
+
+  // clamp
+  buyQty=Math.max(1,Math.min(buyQty,maxBuy||1));
+  sellQty=Math.max(1,Math.min(sellQty,maxSell||1));
+
+  let visualHTML="";
+  if(isCar){
+    visualHTML=`<div class="car-visual" style="border-bottom:4px solid ${selCol}">
+      <div style="display:flex;align-items:center;justify-content:center;padding:1.5rem;gap:1.5rem">
+        ${brandLogoHTML(asset.brand,72)}
+        <div>
+          <div style="font-size:13px;color:var(--dim);margin-bottom:4px">${asset.brand}</div>
+          <div style="font-size:20px;font-weight:700;color:var(--text)">${asset.model}</div>
+          <div style="font-size:12px;color:var(--muted);margin-top:6px">${asset.desc}</div>
+        </div>
+      </div>
+      <div class="car-model-label">${asset.brand} · ${asset.model}</div>
+    </div>`;
+  } else if(isWatch){
+    const rawUrl=WATCH_IMAGES[asset.id];
+    const imgUrl=rawUrl?proxyImgWatch(rawUrl):null;
+    const logoKey=asset.logoKey||asset.brand;
+    visualHTML=`<div class="watch-visual">
+      <div class="watch-img-box">
+        ${imgUrl
+          ?`<img src="${imgUrl}" alt="${asset.name}" loading="lazy" onerror="this.style.display='none';this.parentNode.innerHTML='<div style=font-size:48px>⌚</div>'"/>`
+          :`<div style="font-size:48px">⌚</div>`}
+      </div>
+      <div>
+        ${brandLogoHTML(logoKey,44)}
+        <div style="font-size:12px;color:var(--dim);margin:8px 0 4px">${asset.brand}</div>
+        <div style="font-size:15px;color:var(--text);font-weight:700;margin-bottom:4px">${asset.model}</div>
+        <div style="font-size:12px;color:var(--muted)">${asset.desc}</div>
+      </div>
+    </div>`;
+  } else {
+    const logoKey=asset.logoKey||asset.brand||asset.logo;
+    const iconOrLogo = logoKey ? brandLogoHTML(logoKey,56) :
+      `<div style="width:56px;height:56px;border-radius:12px;background:var(--card);display:flex;align-items:center;justify-content:center;font-size:32px">${asset.icon||"💎"}</div>`;
+    visualHTML=`<div style="display:flex;align-items:center;gap:1rem;background:var(--card);border-radius:12px;padding:1rem">
+      ${iconOrLogo}
+      <div>
+        <div style="font-size:11px;color:var(--dim)">${asset.ticker}</div>
+        <div style="font-size:18px;font-weight:700;color:var(--text)">${asset.name}</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:4px">${asset.desc}</div>
+      </div>
+    </div>`;
+  }
+
+  let colorHTML="";
+  if(colList){
+    colorHTML=`<div>
+      <div style="font-size:10px;text-transform:uppercase;letter-spacing:.12em;color:var(--dim);margin-bottom:8px">${isCar?"Lackierung":"Armband & Zifferblatt"}</div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px">
+        ${colList.map(c=>`<div class="color-dot${selectedColor?.hex===c.hex?" selected":""}" style="background:${c.hex};${c.hex==="#F5F5F5"?"box-shadow:inset 0 0 0 1px #999":""}" title="${c.name}" onclick="pickColor('${asset.id}','${c.hex}','${c.name}','${isCar?"car":"watch"}')"></div>`).join("")}
+      </div>
+      ${selectedColor?`<div style="font-size:11px;color:var(--muted);margin-top:6px">${selectedColor.name}</div>`:""}
+    </div>`;
+  }
+
+  const packBtnsBuy=`<div class="pack-btns">${[1,5,10,100].map(n=>`<button id="pack-buy-${n}" class="pack-btn pack-btn-buy${buyQty===n?" pack-active":""}" onclick="setPackQty('buy',${n})">${n}×</button>`).join("")}<button id="pack-buy-max" class="pack-btn pack-btn-buy${buyQty===maxBuy?" pack-active":""}" onclick="setPackQty('buy','max')"><span id="buy-max-val">MAX ${maxBuy}×</span></button></div>`;
+  const packBtnsSell=`<div class="pack-btns">${[1,5,10,100].map(n=>`<button id="pack-sell-${n}" class="pack-btn pack-btn-sell${sellQty===n?" pack-active":""}" onclick="setPackQty('sell',${n})">${n}×</button>`).join("")}<button id="pack-sell-max" class="pack-btn pack-btn-sell${sellQty===maxSell&&maxSell>0?" pack-active":""}" onclick="setPackQty('sell','max')"><span id="sell-max-val">MAX ${maxSell}×</span></button></div>`;
+
+  document.getElementById("modal-inner").innerHTML=`
+    ${visualHTML}
+    <div class="modal-chart-wrap">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+        <div>
+          <div class="price-big">${fmt(price)}</div>
+          <span style="font-size:13px;font-weight:600;padding:3px 8px;border-radius:6px;background:${up?"rgba(74,222,128,.13)":"rgba(248,113,113,.13)"};color:${up?"var(--green)":"var(--red)"}">
+            ${up?"▲":"▼"} ${Math.abs(chg).toFixed(2)}%
+          </span>
+        </div>
+        <div class="chart-range-bar">
+          ${[[10,"1W"],[20,"1M"],[60,"3M"],[120,"6M"],[200,"MAX"]].map(([t,l])=>
+            `<button class="range-btn${chartRange===t?" active":""}" onclick="setChartRange(${t})">${l}</button>`
+          ).join("")}
+        </div>
+      </div>
+      ${sparklineSVG(hist.slice(-chartRange),up?"var(--green)":"var(--red)",560,72,true)}
+    </div>
+    ${colorHTML}
+    <div class="stats-row">
+      <div class="stat-box"><div class="stat-label">Im Besitz</div><div class="stat-val" id="modal-owned-qty">${owned?owned.qty+"×":"0×"}</div></div>
+      <div class="stat-box"><div class="stat-label">Kaufkraft</div><div class="stat-val" id="modal-buy-power">${maxBuy}×</div></div>
+      <div class="stat-box"><div class="stat-label">Volatilität</div><div class="stat-val">${(asset.vol*100).toFixed(1)}%</div></div>
+    </div>
+    <div class="trade-grid">
+      <div class="trade-box buy">
+        <div class="trade-label">Kaufen</div>
+        ${packBtnsBuy}
+        <div class="trade-qty">
+          <button style="border:1px solid rgba(74,222,128,.3);background:#22222C;color:var(--green);border-radius:8px" onclick="adjQty('buy',-1)">−</button>
+          <input type="number" min="1" value="${buyQty}" id="buy-qty-in" onchange="buyQty=Math.max(1,parseInt(this.value)||1);updateModalInPlace()" style="border:1px solid rgba(74,222,128,.3)"/>
+          <button style="border:1px solid rgba(74,222,128,.3);background:#22222C;color:var(--green);border-radius:8px" onclick="adjQty('buy',1)">+</button>
+        </div>
+        <div class="trade-total" id="buy-total">Gesamt: ${fmt(price*buyQty)}</div>
+        <button id="modal-btn-buy" class="btn-buy" ${price*buyQty>GS.cash?"disabled":""} onclick="buy('${asset.id}',buyQty)">KAUFEN</button>
+      </div>
+      <div class="trade-box sell">
+        <div class="trade-label">Verkaufen</div>
+        ${packBtnsSell}
+        <div class="trade-qty">
+          <button style="border:1px solid rgba(248,113,113,.25);background:#22222C;color:var(--red);border-radius:8px" onclick="adjQty('sell',-1)">−</button>
+          <input type="number" min="1" value="${sellQty}" id="sell-qty-in" onchange="sellQty=Math.max(1,parseInt(this.value)||1);updateModalInPlace()" style="border:1px solid rgba(248,113,113,.25)"/>
+          <button style="border:1px solid rgba(248,113,113,.25);background:#22222C;color:var(--red);border-radius:8px" onclick="adjQty('sell',1)">+</button>
+        </div>
+        <div class="trade-total" id="sell-total">Erlös: ${fmt(price*sellQty)}</div>
+        <button id="modal-btn-sell" class="btn-sell" ${!owned||owned.qty<sellQty?"disabled":""} onclick="sell('${asset.id}',sellQty)">VERKAUFEN</button>
+      </div>
+    </div>
+    <div class="pnl-box" id="modal-pnl-box" style="display:${owned?"flex":"none"}">
+      ${owned?`
+      <div style="text-align:center"><div style="font-size:9px;color:var(--dim);text-transform:uppercase;letter-spacing:.1em">Kaufkurs Ø</div><div style="font-size:14px;font-family:'DM Mono',monospace;color:var(--text)">${fmt(owned.avgCost)}</div></div>
+      <div style="text-align:center"><div style="font-size:9px;color:var(--dim);text-transform:uppercase;letter-spacing:.1em">Unrealisiert P/L</div><div style="font-size:14px;font-family:'DM Mono',monospace;color:${price>owned.avgCost?"var(--green)":"var(--red)"}">
+        ${fmt((price-owned.avgCost)*owned.qty)} (${fmtPct(((price-owned.avgCost)/owned.avgCost)*100)})</div></div>`:""}
+    </div>
+  `;
+}
+
+
+function adjQty(side,delta){
+  if(!currentModal)return;
+  const price=GS.prices[currentModal.asset.id];
+  const owned=GS.portfolio[currentModal.asset.id];
+  if(side==="buy"){
+    const maxBuy=Math.floor(GS.cash/price);
+    buyQty=Math.max(1,Math.min(buyQty+delta,maxBuy||1));
+  } else {
+    const maxSell=owned?owned.qty:0;
+    sellQty=Math.max(1,Math.min(sellQty+delta,maxSell||1));
+  }
+  updateModalInPlace();
+}
+function updateTradeDisplay(){updateModalInPlace();}
+function pickColor(assetId,hex,name,type){
+  selectedColor={hex,name};
+  if(type==="car")GS.carColors={...GS.carColors,[assetId]:hex};
+  else GS.watchColors={...GS.watchColors,[assetId]:hex};
+  renderModal();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// INTRO + INIT
+// ═══════════════════════════════════════════════════════════════
+let selectedCapital = 100000;
+
+function selectCap(el, val){
+  selectedCapital = val;
+  document.querySelectorAll('.cap-btn').forEach(b=>b.classList.remove('selected'));
+  el.classList.add('selected');
+  document.getElementById('custom-capital').value = '';
+}
+function onCustomCapInput(val){
+  if(val >= 1000){
+    selectedCapital = val;
+    document.querySelectorAll('.cap-btn').forEach(b=>b.classList.remove('selected'));
+  }
+}
+
+function startGame(){
+  const cap = selectedCapital || 500000;
+  // init game state with chosen capital
+  const {prices:initP2, history:initH2} = initPrices();
+  GS = {
+    cash: cap,
+    startCash: cap,
+    portfolio:{}, upgrades:{},
+    prices:{...initP2}, history:{...initH2},
+    date: new Date(2020,0,1),
+    newsFeed:[{time:"01. Jan 2020",text:`Willkommen bei <b>APEX CAPITAL</b>. Du startest mit ${fmt(cap)} Kapital.`}],
+    carColors:{}, watchColors:{},
+  };
+  const overlay = document.getElementById('intro-overlay');
+  overlay.classList.add('fade-out');
+  setTimeout(()=>{
+    overlay.style.display='none';
+    document.getElementById('app').style.display='flex';
+    updateHeader();
+    updateTicker();
+    render();
+    startTick();
+  }, 700);
+}
+
+// no particles
+
+let tickInterval = null;
+function startTick(){
+  if(tickInterval) clearInterval(tickInterval);
+  tickInterval = setInterval(()=>{
+    const newDate=new Date(GS.date.getTime()+(3+Math.random()*3)*86400000);
+    ALL_ASSETS.forEach(a=>{
+      let drift=0.0003;
+      if(a.cat==="tech")drift=0.0006;
+      if(a.cat==="crypto")drift=0.0012;
+      const shock=(Math.random()-0.482)*a.vol;
+      const newP=Math.max(GS.prices[a.id]*(1+drift+shock),a.price*0.1);
+      GS.prices[a.id]=newP;
+      const hist=[...(GS.history[a.id]||[a.price]),newP];
+      GS.history[a.id]=hist.slice(-200);
+      if(Math.random()<0.018){
+        const msgs=[
+          `<b>${a.name}</b> ${shock>0?"springt":"fällt"} ${Math.abs(shock*100).toFixed(1)}% nach ${shock>0?"positiven Quartalszahlen":"enttäuschenden Ergebnissen"}.`,
+          `Analysten ${shock>0?"erhöhen":"senken"} Kursziel für <b>${a.ticker}</b> signifikant.`,
+          `${shock>0?"▲":"▼"} <b>${a.name}</b>: Institutionelle Investoren ${shock>0?"kaufen massiv zu":"reduzieren Position"}.`,
+        ];
+        GS.newsFeed.unshift({time:fmtDate(newDate),text:msgs[Math.floor(Math.random()*msgs.length)]});
+        if(GS.newsFeed.length>60)GS.newsFeed.pop();
+      }
+    });
+    GS.date=newDate;
+    updateHeader();
+    updateTicker();
+    tickUpdatePrices(); // fast in-place DOM update instead of full re-render
+    if(currentModal)updateModalInPlace();
+  },2800);
+}
+
+// ── Fast tick update: only rewrite price/change text nodes in the visible grid ──
+function tickUpdatePrices(){
+  // Only panels with live price cards benefit; news/upgrades don't need it
+  if(['news','upgrades'].includes(currentPanel)) return;
+  // If dashboard, just re-render it (it's a table, not many nodes)
+  if(currentPanel==='dashboard'){ render(); return; }
+  // For grid panels: update .card-price and .card-chg spans in place
+  const cards = document.querySelectorAll('.asset-card');
+  if(!cards.length){ render(); return; }
+  cards.forEach(card=>{
+    const onclick = card.getAttribute('onclick')||'';
+    const m = onclick.match(/openModal\('([^']+)','([^']+)'\)/);
+    if(!m) return;
+    const [,id,type] = m;
+    const price = GS.prices[id];
+    if(price===undefined) return;
+    const chg = getChange(id);
+    const up = chg>=0;
+    const priceEl = card.querySelector('.card-price');
+    if(priceEl) priceEl.textContent = fmt(price);
+    const chgEl = card.querySelector('.card-chg');
+    if(chgEl){
+      chgEl.textContent = (up?'▲':'▼')+' '+Math.abs(chg).toFixed(2)+'%';
+      chgEl.className = 'card-chg '+(up?'up':'dn');
+    }
+    // update sparkline
+    const hist = GS.history[id]||[];
+    const sparkWrap = card.querySelector('.card-bottom');
+    if(sparkWrap){
+      const oldSvg = sparkWrap.querySelector('svg');
+      if(oldSvg){
+        const newSvg = sparklineSVG(hist.slice(-20),up?'var(--green)':'var(--red)',60,22);
+        const tmp = document.createElement('div');
+        tmp.innerHTML = newSvg;
+        if(tmp.firstChild) oldSvg.replaceWith(tmp.firstChild);
+      }
+    }
+  });
+}
+</script>
+</body>
+</html>
